@@ -464,5 +464,3 @@ class Search_Replace_Command extends WP_CLI_Command {
 	}
 
 }
-
-WP_CLI::add_command( 'search-replace', 'Search_Replace_Command' );
