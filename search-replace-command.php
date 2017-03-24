@@ -5,7 +5,7 @@ if ( ! class_exists( 'WP_CLI' ) ) {
 }
 
 $autoload = dirname( __FILE__ ) . '/vendor/autoload.php';
-if ( file_exists( $autoload ) && ! class_exists( 'Search_Replace_Command' ) ) {
+if ( file_exists( $autoload ) ) {
 	require_once $autoload;
 }
 
