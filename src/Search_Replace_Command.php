@@ -328,9 +328,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags );
 
 		$where = $this->regex ? '' : " WHERE `$col`" . $wpdb->prepare( ' LIKE %s', '%' . self::esc_like( $old ) . '%' );
-		$primary_keys_sql = esc_sql( implode( ',', $primary_keys ) );
+		$primary_keys_sql = '`' . esc_sql( implode( '`,`', $primary_keys ) ) . '`';
 		$col_sql = esc_sql( $col );
-		$rows = $wpdb->get_results( "SELECT `{$primary_keys_sql}` FROM `{$table}` {$where}" );
+		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM `{$table}` {$where}" );
 		foreach ( $rows as $keys ) {
 			$where_sql = '';
 			foreach( (array) $keys as $k => $v ) {
