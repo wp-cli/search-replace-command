@@ -21,7 +21,9 @@
             "": "src/",
             "WP_CLI\\": "src/WP_CLI"
         },
-        "files": [ "search-replace-command.php" ]
+        "files": [
+            "search-replace-command.php"
+        ]
     },
     "require": {
         "wp-cli/wp-cli": "*"
@@ -35,6 +37,7 @@
         },
         "commands": [
             "search-replace"
-        ]
+        ],
+        "bundled": true
     }
 }
