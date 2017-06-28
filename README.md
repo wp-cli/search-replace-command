@@ -87,6 +87,15 @@ change primary key values.
 	[--regex-flags=<regex-flags>]
 		Pass PCRE modifiers to regex search-replace (e.g. 'i' for case-insensitivity).
 
+	[--format=<format>]
+		Render output in a particular format.
+		---
+		default: table
+		options:
+		  - table
+		  - count
+		---
+
 **EXAMPLES**
 
     # Search and replace but skip one column

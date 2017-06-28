@@ -10,6 +10,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $regex_flags;
 	private $skip_columns;
 	private $include_columns;
+	private $format;
 
 	/**
 	 * Search/replace strings in the database.
@@ -88,6 +89,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * [--regex-flags=<regex-flags>]
 	 * : Pass PCRE modifiers to regex search-replace (e.g. 'i' for case-insensitivity).
 	 *
+	 * [--format=<format>]
+	 * : Render output in a particular format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - count
+	 * ---
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     # Search and replace but skip one column
@@ -125,6 +135,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->regex           =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex' );
 		$this->regex_flags     =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags' );
+		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
@@ -194,7 +205,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					continue;
 				}
 
-				if ( $this->verbose ) {
+				if ( $this->verbose && 'count' !== $this->format ) {
 					$this->start_time = microtime( true );
 					WP_CLI::log( sprintf( 'Checking: %s.%s', $table, $col ) );
 				}
@@ -231,6 +242,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return;
 		}
 
+		if ( 'count' === $this->format ) {
+			WP_CLI::line( $total );
+			return;
+		}
+
 		$table = new \cli\Table();
 		$table->setHeaders( array( 'Table', 'Column', 'Replacements', 'Type' ) );
 		$table->setRows( $report );
@@ -264,7 +280,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags );
 		$col_counts = array_fill_keys( $all_columns, 0 );
-		if ( $this->verbose ) {
+		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
 			WP_CLI::log( sprintf( 'Checking: %s', $table ) );
 		}
@@ -297,7 +313,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		if ( $this->verbose ) {
+		if ( $this->verbose && 'table' === $this->format ) {
 			$time = round( microtime( true ) - $this->start_time, 3 );
 			WP_CLI::log( sprintf( '%d columns and %d total rows affected using PHP (in %ss).', $total_cols, $total_rows, $time ) );
 		}
@@ -314,7 +330,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$count = $wpdb->query( $wpdb->prepare( "UPDATE `$table` SET `$col` = REPLACE(`$col`, %s, %s);", $old, $new ) );
 		}
 
-		if ( $this->verbose ) {
+		if ( $this->verbose && 'table' === $this->format ) {
 			$time = round( microtime( true ) - $this->start_time, 3 );
 			WP_CLI::log( sprintf( '%d rows affected using SQL (in %ss).', $count, $time ) );
 		}
@@ -362,7 +378,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		if ( $this->verbose ) {
+		if ( $this->verbose && 'table' === $this->format ) {
 			$time = round( microtime( true ) - $this->start_time, 3 );
 			WP_CLI::log( sprintf( '%d rows affected using PHP (in %ss).', $count, $time ) );
 		}
