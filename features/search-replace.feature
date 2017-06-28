@@ -335,3 +335,33 @@ Feature: Do global search/replace
       """
       http://BAXAMPLE.com
       """
+
+  Scenario: Formatting as count-only
+    Given a WP install
+    And I run `wp option set foo 'ALPHA.example.com'`
+
+    # --quite should suppress --format=count
+    When I run `wp search-replace 'ALPHA.example.com' 'BETA.example.com' --quiet --format=count`
+    Then STDOUT should be empty
+
+    # --format=count should suppress --verbose
+    When I run `wp search-replace 'BETA.example.com' 'ALPHA.example.com' --format=count --verbose`
+    Then STDOUT should be:
+      """
+      1
+      """
+
+    # The normal command
+    When I run `wp search-replace 'ALPHA.example.com' 'BETA.example.com' --format=count`
+    Then STDOUT should be:
+      """
+      1
+      """
+
+    # Lets just make sure that zero works, too.
+    When I run `wp search-replace 'DELTA.example.com' 'ALPHA.example.com' --format=count`
+    Then STDOUT should be:
+      """
+      0
+      """
+
