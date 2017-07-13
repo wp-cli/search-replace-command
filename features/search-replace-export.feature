@@ -153,8 +153,12 @@ Feature: Search / replace with file export
 
   Scenario: Search / replace export invalid file
     Given a WP install
+    And a suppress-error-log.php file:
+      """
+      <?php ini_set( 'error_log', null );
+      """
 
-    When I try `wp search-replace example.com example.net --export=foo/bar.sql`
+    When I try `wp --require=suppress-error-log.php search-replace example.com example.net --export=foo/bar.sql`
     Then STDERR should contain:
       """
       Error: Unable to open "foo/bar.sql" for writing.
