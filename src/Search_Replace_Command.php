@@ -258,10 +258,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 			} else {
 				$success_message = "Made $total replacements.";
 				if ( $total && 'Default' !== WP_CLI\Utils\wp_get_cache_type() ) {
-					if ( is_multisite() ) {
-						$success_message .= ' Please remember to flush your persistent object cache with `wp cache flush`. If you see a "Site not found" error after replacing a domain, try flushing cache against the old domain (which may be the cached lookup value).';
-					} else {
 						$success_message .= ' Please remember to flush your persistent object cache with `wp cache flush`.';
+					if ( is_multisite() ) {
+						$success_message .= ' If you see a "Site not found" error after replacing a domain, try flushing cache against the old domain (which may be the cached lookup value).';
 					}
 				}
 			}
