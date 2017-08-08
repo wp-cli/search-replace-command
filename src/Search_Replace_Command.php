@@ -18,9 +18,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * Searches through all rows in a selection of tables and replaces
 	 * appearances of the first string with the second string.
 	 *
-	 * By default, the command uses tables registered to the $wpdb object. On
+	 * By default, the command uses tables registered to the `$wpdb` object. On
 	 * multisite, this will just be the tables for the current site unless
-	 * --network is specified.
+	 * `--network` is specified.
 	 *
 	 * Search/replace intelligently handles PHP serialized data, and does not
 	 * change primary key values.
