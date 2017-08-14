@@ -197,3 +197,46 @@ Feature: Search / replace with file export
       """
       foo
       """
+
+  Scenario: Search / replace export should cater for field/table names that use reserved words or unusual characters
+    Given a WP install
+    # Unlike search-replace.features version, don't use `back``tick` column name as WP_CLI\Iterators\Table::build_fields() can't handle it.
+    And a esc_sql_ident.sql file:
+      """
+      CREATE TABLE `TABLE` (`KEY` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT, `VALUES` TEXT, `single'double"quote` TEXT, PRIMARY KEY (`KEY`) );
+      INSERT INTO `TABLE` (`VALUES`, `single'double"quote`) VALUES ('v"vvvv_v1', 'v"vvvv_v1' );
+      INSERT INTO `TABLE` (`VALUES`, `single'double"quote`) VALUES ('v"vvvv_v2', 'v"vvvv_v2' );
+      """
+
+    When I run `wp db query "SOURCE esc_sql_ident.sql;"`
+    Then STDERR should be empty
+
+    When I run `wp search-replace 'v"vvvv_v' 'w"wwww_w' TABLE --export`
+    Then STDOUT should contain:
+      """
+      INSERT INTO `TABLE` (`KEY`, `VALUES`, `single'double"quote`) VALUES
+      """
+    And STDOUT should contain:
+      """
+      ('1', 'w\"wwww_w1', 'w\"wwww_w1')
+      """
+    And STDOUT should contain:
+      """
+      ('2', 'w\"wwww_w2', 'w\"wwww_w2')
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace 'v"vvvv_v2' 'w"wwww_w2' TABLE --export --regex`
+    Then STDOUT should contain:
+      """
+      INSERT INTO `TABLE` (`KEY`, `VALUES`, `single'double"quote`) VALUES
+      """
+    And STDOUT should contain:
+      """
+      ('1', 'v\"vvvv_v1', 'v\"vvvv_v1')
+      """
+    And STDOUT should contain:
+      """
+      ('2', 'w\"wwww_w2', 'w\"wwww_w2')
+      """
+    And STDERR should be empty
