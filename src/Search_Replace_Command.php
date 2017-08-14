@@ -176,9 +176,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$tables = \WP_CLI\Utils\wp_get_table_names( $args, $assoc_args );
 		foreach ( $tables as $table ) {
 
+			$table_sql = self::esc_sql_ident( $table );
+
 			if ( $this->export_handle ) {
-				fwrite( $this->export_handle, "\nDROP TABLE IF EXISTS `$table`;\n" );
-				$row = $wpdb->get_row( "SHOW CREATE TABLE `$table`", ARRAY_N );
+				fwrite( $this->export_handle, "\nDROP TABLE IF EXISTS $table_sql;\n" );
+				$row = $wpdb->get_row( "SHOW CREATE TABLE $table_sql", ARRAY_N );
 				fwrite( $this->export_handle, $row[1] . ";\n" );
 				list( $table_report, $total_rows ) = $this->php_export_table( $table, $old, $new );
 				$report = array_merge( $report, $table_report );
@@ -211,8 +213,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 
 				if ( ! $php_only && ! $this->regex ) {
+					$col_sql = self::esc_sql_ident( $col );
 					$wpdb->last_error = '';
-					$serialRow = $wpdb->get_row( "SELECT * FROM `$table` WHERE `$col` REGEXP '^[aiO]:[1-9]' LIMIT 1" );
+					$serialRow = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
 					// When the regex triggers an error, we should fall back to PHP
 					if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
 						$serialRow = true;
@@ -327,10 +330,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private function sql_handle_col( $col, $table, $old, $new ) {
 		global $wpdb;
 
+		$table_sql = self::esc_sql_ident( $table );
+		$col_sql = self::esc_sql_ident( $col );
 		if ( $this->dry_run ) {
-			$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(`$col`) FROM `$table` WHERE `$col` LIKE %s;", '%' . self::esc_like( $old ) . '%' ) );
+			$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE %s;", '%' . self::esc_like( $old ) . '%' ) );
 		} else {
-			$count = $wpdb->query( $wpdb->prepare( "UPDATE `$table` SET `$col` = REPLACE(`$col`, %s, %s);", $old, $new ) );
+			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -346,19 +351,20 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$count = 0;
 		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags );
 
-		$where = $this->regex ? '' : " WHERE `$col`" . $wpdb->prepare( ' LIKE %s', '%' . self::esc_like( $old ) . '%' );
-		$primary_keys_sql = esc_sql( implode( ',', $primary_keys ) );
-		$col_sql = esc_sql( $col );
-		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM `{$table}` {$where}" );
+		$table_sql = self::esc_sql_ident( $table );
+		$col_sql = self::esc_sql_ident( $col );
+		$where = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE %s', '%' . self::esc_like( $old ) . '%' );
+		$primary_keys_sql = implode( ',', self::esc_sql_ident( $primary_keys ) );
+		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where}" );
 		foreach ( $rows as $keys ) {
 			$where_sql = '';
 			foreach( (array) $keys as $k => $v ) {
 				if ( strlen( $where_sql ) ) {
 					$where_sql .= ' AND ';
 				}
-				$where_sql .= "{$k}='{$v}'";
+				$where_sql .= self::esc_sql_ident( $k ) . ' = ' . esc_sql( $v );
 			}
-			$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM `{$table}` WHERE {$where_sql}" );
+			$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
 			if ( '' === $col_value )
 				continue;
 
@@ -396,13 +402,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return;
 		}
 
-		$insert = "INSERT INTO `$table` (";
-		$insert .= join( ', ', array_map(
-			function ( $field ) {
-				return "`$field`";
-			},
-			array_keys( $rows[0] )
-		) );
+		$table_sql = self::esc_sql_ident( $table );
+		$insert = "INSERT INTO $table_sql (";
+		$insert .= join( ', ', self::esc_sql_ident( array_keys( $rows[0] ) ) );
 		$insert .= ') VALUES ';
 		$insert .= "\n";
 
@@ -445,8 +447,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private static function get_columns( $table ) {
 		global $wpdb;
 
+		$table_sql = self::esc_sql_ident( $table );
 		$primary_keys = $text_columns = $all_columns = array();
-		foreach ( $wpdb->get_results( "DESCRIBE `$table`" ) as $col ) {
+		foreach ( $wpdb->get_results( "DESCRIBE $table_sql" ) as $col ) {
 			if ( 'PRI' === $col->Key ) {
 				$primary_keys[] = $col->Field;
 			}
@@ -476,10 +479,28 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$old = $wpdb->esc_like( $old );
 		} else {
 			// 3.9 or less
-			$old = like_escape( esc_sql( $old ) );
+			$old = like_escape( esc_sql( $old ) ); // Note: this double escaping is actually necessary, even though `esc_like()` will be used in a `prepare()`.
 		}
 
 		return $old;
+	}
+
+	/**
+	 * Escapes (backticks) MySQL identifiers (aka schema object names) - i.e. column names, table names, and database/index/alias/view etc names.
+	 * See https://dev.mysql.com/doc/refman/5.5/en/identifiers.html
+	 *
+	 * @param string|array $idents A single identifier or an array of identifiers.
+	 * @return string|array An escaped string if given a string, or an array of escaped strings if given an array of strings.
+	 */
+	private static function esc_sql_ident( $idents ) {
+		$backtick = function ( $v ) {
+			// Escape any backticks in the identifier by doubling.
+			return '`' . str_replace( '`', '``', $v ) . '`';
+		};
+		if ( is_string( $idents ) ) {
+			return $backtick( $idents );
+		}
+		return array_map( $backtick, $idents );
 	}
 
 }

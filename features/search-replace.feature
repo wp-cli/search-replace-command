@@ -365,3 +365,29 @@ Feature: Do global search/replace
       0
       """
 
+  Scenario: Search / replace should cater for field/table names that use reserved words or unusual characters
+    Given a WP install
+    And a esc_sql_ident.sql file:
+      """
+      CREATE TABLE `TABLE` (`KEY` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT, `VALUES` TEXT, `back``tick` TEXT, `single'double"quote` TEXT, PRIMARY KEY (`KEY`) );
+      INSERT INTO `TABLE` (`VALUES`, `back``tick`, `single'double"quote`) VALUES ('v"vvvv_v1', 'v"vvvv_v1', 'v"vvvv_v1' );
+      INSERT INTO `TABLE` (`VALUES`, `back``tick`, `single'double"quote`) VALUES ('v"vvvv_v2', 'v"vvvv_v2', 'v"vvvv_v2' );
+      """
+
+    When I run `wp db query "SOURCE esc_sql_ident.sql;"`
+    Then STDERR should be empty
+
+    When I run `wp search-replace 'v"vvvv_v' 'w"wwww_w' TABLE --format=count`
+    Then STDOUT should be:
+      """
+      6
+      """
+    And STDERR should be empty
+
+    # Regex uses wpdb::update() which can't handle backticks in field names so avoid `back``tick` column.
+    When I run `wp search-replace 'w"wwww_w' 'v"vvvv_v' TABLE --regex --include-columns='VALUES,single'\''double"quote' --format=count`
+    Then STDOUT should be:
+      """
+      4
+      """
+    And STDERR should be empty
