@@ -153,9 +153,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$this->export_handle = STDOUT;
 				$this->verbose = false;
 			} else {
-				$this->export_handle = fopen( $assoc_args['export'], 'w' );
+				$this->export_handle = @fopen( $assoc_args['export'], 'w' );
 				if ( false === $this->export_handle ) {
-					WP_CLI::error( sprintf( 'Unable to open "%s" for writing.', $assoc_args['export'] ) );
+					$error = error_get_last();
+					WP_CLI::error( sprintf( 'Unable to open "%s" for writing: %s.', $assoc_args['export'], $error['message'] ) );
 				}
 			}
 			$export_insert_size = WP_CLI\Utils\get_flag_value( $assoc_args, 'export_insert_size', 50 );
