@@ -171,18 +171,10 @@ Feature: Do global search/replace
       world, Hello
       """
 
-  Scenario: Regex search/replace with `--regex-flags`
+  Scenario: Regex search/replace with a incorrect `--regex-flags`
     Given a WP install
-    When I run `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-flags='kppr'`
-    Then STDOUT should contain:
-      """
-      wp_posts
-      """
-    When I run `wp post list --fields=post_title`
-    Then STDOUT should contain:
-      """
-      world, Hello
-      """
+    When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-flags='kppr'`
+    And the return code should be 1
 
   Scenario: Search and replace within theme mods
     Given a WP install
