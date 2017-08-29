@@ -355,6 +355,17 @@ Feature: Do global search/replace
       http://example.jp
       """
 
+    When I run `wp search-replace 'http://example.jp/' 'http://example.com/' wp_options --regex-delimiter='/'`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type       |
+      | wp_options | option_value | 2            | PHP        |
+
+    When I run `wp option get home`
+    Then STDOUT should be:
+      """
+      http://example.com
+      """
+
     When I try `wp search-replace 'HTTP://EXAMPLE.COM' 'http://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
     Then STDERR should be:
       """
