@@ -142,17 +142,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '/' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
-		// http://php.net/manual/en/reference.pcre.pattern.modifiers.php
-		if ( $this->regex_flags && ! preg_match( '/^(?!.*(.).*\1)[imsxeADSUXJu]+$/', $this->regex_flags ) ) {
-			WP_CLI::error( "Incorrect PCRE modifiers." );
-		}
-
-		if ( empty( $this->regex_delimiter ) ) {
-			$this->regex_delimiter = '/';
-		} elseif( ! preg_match( '/^[^0-9\\s]{1}$/', $this->regex_delimiter ) ) {
-			WP_CLI::error( "Incorrect regex delimiter." );
-		}
-
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 

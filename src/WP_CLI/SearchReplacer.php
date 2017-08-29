@@ -84,7 +84,14 @@ class SearchReplacer {
 
 			else if ( is_string( $data ) ) {
 				if ( $this->regex ) {
-					$data = preg_replace( "$this->regex_delimiter$this->from$this->regex_delimiter$this->regex_flags", $this->to, $data );
+					$search_regex = $this->regex_delimiter;
+					$search_regex .= $this->from;
+					$search_regex .= $this->regex_delimiter;
+					$search_regex .= $this->regex_flags;
+					if ( false === @preg_match( $search_regex, '' ) ) {
+						\WP_CLI::error( "The regex '$search_regex' fails." );
+					}
+					$data = preg_replace( $search_regex, $this->to, $data );
 				} else {
 					$data = str_replace( $this->from, $this->to, $data );
 				}
