@@ -153,8 +153,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 			WP_CLI::error( "Incorrect regex delimiter." );
 		}
 
-		$this->regex = str_replace( $this->regex_delimiter, "\\" . $this->regex_delimiter, $this->regex );
-
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 
