@@ -139,7 +139,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->regex           =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex' );
 		$this->regex_flags     =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags' );
-		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex_delimiter', '/' );
+		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '/' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
 		// http://php.net/manual/en/reference.pcre.pattern.modifiers.php
