@@ -147,8 +147,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 			WP_CLI::error( "Incorrect PCRE modifiers." );
 		}
 
-		if ( '' === $this->regex_delimiter ) {
+		if ( empty( $this->regex_delimiter ) ) {
 			$this->regex_delimiter = '/';
+		} elseif( ! preg_match( '/^[^0-9\\s]{1}$/', $this->regex_delimiter ) ) {
+			WP_CLI::error( "Incorrect regex delimiter." );
 		}
 
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
