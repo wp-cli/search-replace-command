@@ -347,13 +347,20 @@ Feature: Do global search/replace
     When I run `wp search-replace 'HTTP://EXAMPLE.COM' 'http://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='#'`
     Then STDOUT should be a table containing rows:
       | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 0            | PHP        |
+      | wp_options | option_value | 2            | PHP        |
 
     When I run `wp option get home`
     Then STDOUT should be:
       """
-      http://example.com
+      http://example.jp
       """
+
+    When I try `wp search-replace 'HTTP://EXAMPLE.COM' 'http://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
+    Then STDERR should be:
+      """
+      Error: Incorrect regex delimiter.
+      """
+    And the return code should be 1
 
   Scenario: Formatting as count-only
     Given a WP install
