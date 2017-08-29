@@ -137,6 +137,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->regex_flags     =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
+		// http://php.net/manual/en/reference.pcre.pattern.modifiers.php
+		if ( ! preg_match( '/[imsxeADSUXJu]/', $this->regex_flags ) ) {
+			WP_CLI::error( "Incorrect PCRE modifiers." );
+			exit;
+		}
+
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 
