@@ -138,7 +138,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
 		// http://php.net/manual/en/reference.pcre.pattern.modifiers.php
-		if ( ! preg_match( '/[imsxeADSUXJu]/', $this->regex_flags ) ) {
+		if ( ! preg_match( '/^[imsxeADSUXJu]+$/', $this->regex_flags ) ) {
 			WP_CLI::error( "Incorrect PCRE modifiers." );
 			exit;
 		}
