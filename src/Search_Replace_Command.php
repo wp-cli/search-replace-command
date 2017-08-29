@@ -8,6 +8,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $recurse_objects;
 	private $regex;
 	private $regex_flags;
+	private $regex_delimiter;
 	private $skip_columns;
 	private $include_columns;
 	private $format;
@@ -89,6 +90,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * [--regex-flags=<regex-flags>]
 	 * : Pass PCRE modifiers to regex search-replace (e.g. 'i' for case-insensitivity).
 	 *
+	 * [--regex-delimiter=<regex-delimiter>]
+	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string.
+	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
 	 * ---
@@ -135,12 +139,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->regex           =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex' );
 		$this->regex_flags     =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags' );
+		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '/' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
 		// http://php.net/manual/en/reference.pcre.pattern.modifiers.php
 		if ( $this->regex_flags && ! preg_match( '/^(?!.*(.).*\1)[imsxeADSUXJu]+$/', $this->regex_flags ) ) {
 			WP_CLI::error( "Incorrect PCRE modifiers." );
-			exit;
+		}
+
+		if ( empty( $this->regex_delimiter ) ) {
+			$this->regex_delimiter = '/';
+		} elseif( ! preg_match( '/^[^0-9\\s]{1}$/', $this->regex_delimiter ) ) {
+			WP_CLI::error( "Incorrect regex delimiter." );
 		}
 
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
@@ -291,7 +301,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size
 		);
 
-		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags );
+		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter );
 		$col_counts = array_fill_keys( $all_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
@@ -356,7 +366,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		global $wpdb;
 
 		$count = 0;
-		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags );
+		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter );
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql = self::esc_sql_ident( $col );
