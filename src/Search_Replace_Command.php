@@ -150,6 +150,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 			exit;
 		}
 
+		if ( ! empty( $this->regex ) ) {
+			$search_regex = $this->regex_delimiter;
+			$search_regex .= $old;
+			$search_regex .= $this->regex_delimiter;
+			$search_regex .= $this->regex_flags;
+			if ( false === @preg_match( $search_regex, '' ) ) {
+				\WP_CLI::error( "The regex '$search_regex' fails." );
+			}
+		}
+
 		if ( null !== ( $export = \WP_CLI\Utils\get_flag_value( $assoc_args, 'export' ) ) ) {
 			if ( $this->dry_run ) {
 				WP_CLI::error( 'You cannot supply --dry-run and --export at the same time.' );
