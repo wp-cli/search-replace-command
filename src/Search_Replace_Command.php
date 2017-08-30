@@ -91,7 +91,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Pass PCRE modifiers to regex search-replace (e.g. 'i' for case-insensitivity).
 	 *
 	 * [--regex-delimiter=<regex-delimiter>]
-	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string.
+	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string. The default value is the result of `chr(1)`.
 	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
