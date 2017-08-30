@@ -143,6 +143,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
 		if ( ! empty( $this->regex ) ) {
+			if ( '' === $this->regex_delimiter ) {
+				$this->regex_delimiter = chr( 1 );
+			}
 			$search_regex = $this->regex_delimiter;
 			$search_regex .= $old;
 			$search_regex .= $this->regex_delimiter;
