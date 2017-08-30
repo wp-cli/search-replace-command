@@ -174,9 +174,13 @@ Feature: Do global search/replace
   Scenario: Regex search/replace with a incorrect `--regex-flags`
     Given a WP install
     When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-flags='kppr'`
-    Then STDERR should be:
+    Then STDERR should contain:
       """
-      Error: The regex '/(Hello)\s(world)/kppr' fails.
+      (Hello)\s(world)
+      """
+    And STDERR should contain:
+      """
+      kppr
       """
     And the return code should be 1
 
