@@ -174,6 +174,14 @@ Feature: Do global search/replace
   Scenario: Regex search/replace with a incorrect `--regex-flags`
     Given a WP install
     When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-flags='kppr'`
+    Then STDERR should contain:
+      """
+      (Hello)\s(world)
+      """
+    And STDERR should contain:
+      """
+      kppr
+      """
     And the return code should be 1
 
   Scenario: Search and replace within theme mods
@@ -355,10 +363,21 @@ Feature: Do global search/replace
       http://example.jp
       """
 
+    When I run `wp search-replace 'http://example.jp/' 'http://example.com/' wp_options --regex-delimiter='/'`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type       |
+      | wp_options | option_value | 2            | PHP        |
+
+    When I run `wp option get home`
+    Then STDOUT should be:
+      """
+      http://example.com
+      """
+
     When I try `wp search-replace 'HTTP://EXAMPLE.COM' 'http://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
     Then STDERR should be:
       """
-      Error: Incorrect regex delimiter.
+      Error: The regex '1HTTP://EXAMPLE.COM1i' fails.
       """
     And the return code should be 1
 
