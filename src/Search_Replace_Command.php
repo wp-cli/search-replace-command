@@ -91,7 +91,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Pass PCRE modifiers to regex search-replace (e.g. 'i' for case-insensitivity).
 	 *
 	 * [--regex-delimiter=<regex-delimiter>]
-	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string.
+	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string. The default value is the result of `chr(1)`.
 	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
@@ -139,18 +139,20 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->regex           =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex' );
 		$this->regex_flags     =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags' );
-		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '/' );
+		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', chr( 1 ) );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
-		// http://php.net/manual/en/reference.pcre.pattern.modifiers.php
-		if ( $this->regex_flags && ! preg_match( '/^(?!.*(.).*\1)[imsxeADSUXJu]+$/', $this->regex_flags ) ) {
-			WP_CLI::error( "Incorrect PCRE modifiers." );
-		}
-
-		if ( empty( $this->regex_delimiter ) ) {
-			$this->regex_delimiter = '/';
-		} elseif( ! preg_match( '/^[^0-9\\s]{1}$/', $this->regex_delimiter ) ) {
-			WP_CLI::error( "Incorrect regex delimiter." );
+		if ( ! empty( $this->regex ) ) {
+			if ( '' === $this->regex_delimiter ) {
+				$this->regex_delimiter = chr( 1 );
+			}
+			$search_regex = $this->regex_delimiter;
+			$search_regex .= $old;
+			$search_regex .= $this->regex_delimiter;
+			$search_regex .= $this->regex_flags;
+			if ( false === @preg_match( $search_regex, '' ) ) {
+				\WP_CLI::error( "The regex '$search_regex' fails." );
+			}
 		}
 
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
