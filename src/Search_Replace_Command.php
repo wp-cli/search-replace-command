@@ -142,14 +142,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '/' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 
-		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
-		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
-
-		if ( $old === $new && ! $this->regex ) {
-			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
-			exit;
-		}
-
 		if ( ! empty( $this->regex ) ) {
 			$search_regex = $this->regex_delimiter;
 			$search_regex .= $old;
@@ -158,6 +150,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 			if ( false === @preg_match( $search_regex, '' ) ) {
 				\WP_CLI::error( "The regex '$search_regex' fails." );
 			}
+		}
+
+		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
+		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
+
+		if ( $old === $new && ! $this->regex ) {
+			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
+			exit;
 		}
 
 		if ( null !== ( $export = \WP_CLI\Utils\get_flag_value( $assoc_args, 'export' ) ) ) {
