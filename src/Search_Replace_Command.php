@@ -12,6 +12,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $skip_columns;
 	private $include_columns;
 	private $format;
+	private $report;
+	private $report_changed_only;
 
 	/**
 	 * Search/replace strings in the database.
@@ -102,6 +104,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *   - count
 	 * ---
 	 *
+	 * [--report]
+	 * : Produce report. Defaults to true.
+	 *
+	 * [--report-changed-only]
+	 * : Report changed fields only. Defaults to false.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     # Search and replace but skip one column
@@ -184,6 +192,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$php_only = true;
 		}
 
+		$this->report = \WP_CLI\Utils\get_flag_value( $assoc_args, 'report', true );
+		$this->report_changed_only = \WP_CLI\Utils\get_flag_value( $assoc_args, 'report-changed-only', false );
+
 		if ( $this->regex_flags ) {
 			$php_only = true;
 		}
@@ -202,7 +213,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$row = $wpdb->get_row( "SHOW CREATE TABLE $table_sql", ARRAY_N );
 				fwrite( $this->export_handle, $row[1] . ";\n" );
 				list( $table_report, $total_rows ) = $this->php_export_table( $table, $old, $new );
-				$report = array_merge( $report, $table_report );
+				if ( $this->report ) {
+					$report = array_merge( $report, $table_report );
+				}
 				$total += $total_rows;
 				// Don't perform replacements on the actual database
 				continue;
@@ -213,7 +226,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// since we'll be updating one row at a time,
 			// we need a primary key to identify the row
 			if ( empty( $primary_keys ) ) {
-				$report[] = array( $table, '', 'skipped' );
+				if ( $this->report ) {
+					$report[] = array( $table, '', 'skipped', '' );
+				} else {
+					WP_CLI::warning( $all_columns ? "No primary keys for table '$table'." : "No such table '$table'." );
+				}
 				continue;
 			}
 
@@ -249,7 +266,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$count = $this->sql_handle_col( $col, $table, $old, $new );
 				}
 
-				$report[] = array( $table, $col, $count, $type );
+				if ( $this->report && ( $count || ! $this->report_changed_only ) ) {
+					$report[] = array( $table, $col, $count, $type );
+				}
 
 				$total += $count;
 			}
@@ -269,10 +288,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return;
 		}
 
-		$table = new \cli\Table();
-		$table->setHeaders( array( 'Table', 'Column', 'Replacements', 'Type' ) );
-		$table->setRows( $report );
-		$table->display();
+		if ( $this->report ) {
+			$table = new \cli\Table();
+			$table->setHeaders( array( 'Table', 'Column', 'Replacements', 'Type' ) );
+			$table->setRows( $report );
+			$table->display();
+		}
 
 		if ( ! $this->dry_run ) {
 			if ( ! empty( $assoc_args['export'] ) ) {
@@ -331,7 +352,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$table_report = array();
 		$total_rows = $total_cols = 0;
 		foreach ( $col_counts as $col => $col_count ) {
-			$table_report[] = array( $table, $col, $col_count, 'PHP' );
+			if ( $this->report && ( $col_count || ! $this->report_changed_only ) ) {
+				$table_report[] = array( $table, $col, $col_count, 'PHP' );
+			}
 			if ( $col_count ) {
 				$total_cols++;
 				$total_rows += $col_count;
@@ -468,15 +491,19 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$table_sql = self::esc_sql_ident( $table );
 		$primary_keys = $text_columns = $all_columns = array();
-		foreach ( $wpdb->get_results( "DESCRIBE $table_sql" ) as $col ) {
-			if ( 'PRI' === $col->Key ) {
-				$primary_keys[] = $col->Field;
+		$suppress_errors = $wpdb->suppress_errors();
+		if ( ( $results = $wpdb->get_results( "DESCRIBE $table_sql" ) ) ) {
+			foreach ( $results as $col ) {
+				if ( 'PRI' === $col->Key ) {
+					$primary_keys[] = $col->Field;
+				}
+				if ( self::is_text_col( $col->Type ) ) {
+					$text_columns[] = $col->Field;
+				}
+				$all_columns[] = $col->Field;
 			}
-			if ( self::is_text_col( $col->Type ) ) {
-				$text_columns[] = $col->Field;
-			}
-			$all_columns[] = $col->Field;
 		}
+		$wpdb->suppress_errors( $suppress_errors );
 		return array( $primary_keys, $text_columns, $all_columns );
 	}
 
