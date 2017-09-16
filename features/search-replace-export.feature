@@ -236,3 +236,100 @@ Feature: Search / replace with file export
       ('2', 'w\"wwww_w2', 'w\"wwww_w2')
       """
     And STDERR should be empty
+
+  Scenario: Suppress report or only report changes on export to file
+    Given a WP install
+
+    When I run `wp option set foo baz`
+    And I run `wp option get foo`
+    Then STDOUT should be:
+      """
+      baz
+      """
+
+    When I run `wp post create --post_title=baz --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp post meta add {POST_ID} foo baz`
+    Then STDOUT should not be empty
+
+    When I run `wp search-replace baz bar --export=wordpress.sql`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements and exported to wordpress.sql.
+      """
+    And STDOUT should be a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_commentmeta | meta_id      | 0            | PHP  |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | PHP  |
+    | wp_posts       | post_title   | 1            | PHP  |
+    | wp_users       | display_name | 0            | PHP  |
+    And STDERR should be empty
+
+    When I run `wp search-replace baz bar --report --export=wordpress.sql`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements and exported to wordpress.sql.
+      """
+    And STDOUT should be a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_commentmeta | meta_id      | 0            | PHP  |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | PHP  |
+    | wp_posts       | post_title   | 1            | PHP  |
+    | wp_users       | display_name | 0            | PHP  |
+    And STDERR should be empty
+
+    When I run `wp search-replace baz bar --no-report --export=wordpress.sql`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements and exported to wordpress.sql.
+      """
+    And STDOUT should not contain:
+      """
+      Table	Column	Replacements	Type
+      """
+    And STDOUT should not contain:
+      """
+      wp_commentmeta	meta_id	0	PHP
+      """
+    And STDOUT should not contain:
+      """
+      wp_options	option_value	1	PHP
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace baz bar --no-report-changed-only --export=wordpress.sql`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements and exported to wordpress.sql.
+      """
+    And STDOUT should be a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_commentmeta | meta_id      | 0            | PHP  |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | PHP  |
+    | wp_posts       | post_title   | 1            | PHP  |
+    | wp_users       | display_name | 0            | PHP  |
+    And STDERR should be empty
+
+    When I run `wp search-replace baz bar --report-changed-only --export=wordpress.sql`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements and exported to wordpress.sql.
+      """
+    And STDOUT should end with a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | PHP  |
+    | wp_posts       | post_title   | 1            | PHP  |
+    And STDOUT should not contain:
+      """
+      wp_commentmeta	meta_id	0	PHP
+      """
+    And STDOUT should not contain:
+      """
+      wp_users	display_name	0	PHP
+      """
+    And STDERR should be empty
