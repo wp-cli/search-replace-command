@@ -436,3 +436,152 @@ Feature: Do global search/replace
       4
       """
     And STDERR should be empty
+
+  Scenario: Suppress report or only report changes
+    Given a WP install
+
+    When I run `wp option set foo baz`
+    And I run `wp option get foo`
+    Then STDOUT should be:
+      """
+      baz
+      """
+
+    When I run `wp post create --post_title=baz --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp post meta add {POST_ID} foo baz`
+    Then STDOUT should not be empty
+
+    When I run `wp search-replace baz baz1`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements.
+      """
+    And STDOUT should be a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_commentmeta | meta_key     | 0            | SQL  |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | SQL  |
+    | wp_posts       | post_title   | 1            | SQL  |
+    | wp_users       | display_name | 0            | SQL  |
+    And STDERR should be empty
+
+    When I run `wp search-replace baz1 baz2 --report`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements.
+      """
+    And STDOUT should be a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_commentmeta | meta_key     | 0            | SQL  |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | SQL  |
+    | wp_posts       | post_title   | 1            | SQL  |
+    | wp_users       | display_name | 0            | SQL  |
+    And STDERR should be empty
+
+    When I run `wp search-replace baz2 baz3 --no-report`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements.
+      """
+    And STDOUT should not contain:
+      """
+      Table	Column	Replacements	Type
+      """
+    And STDOUT should not contain:
+      """
+      wp_commentmeta	meta_key	0	SQL
+      """
+    And STDOUT should not contain:
+      """
+      wp_options	option_value	1	PHP
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace baz3 baz4 --no-report-changed-only`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements.
+      """
+    And STDOUT should be a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_commentmeta | meta_key     | 0            | SQL  |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | SQL  |
+    | wp_posts       | post_title   | 1            | SQL  |
+    | wp_users       | display_name | 0            | SQL  |
+    And STDERR should be empty
+
+    When I run `wp search-replace baz4 baz5 --report-changed-only`
+    Then STDOUT should contain:
+      """
+      Success: Made 3 replacements.
+      """
+    And STDOUT should end with a table containing rows:
+    | Table          | Column       | Replacements | Type |
+    | wp_options     | option_value | 1            | PHP  |
+    | wp_postmeta    | meta_value   | 1            | SQL  |
+    | wp_posts       | post_title   | 1            | SQL  |
+    And STDOUT should not contain:
+      """
+      wp_commentmeta	meta_key	0	SQL
+      """
+    And STDOUT should not contain:
+      """
+      wp_users	display_name	0	SQL
+      """
+    And STDERR should be empty
+
+  Scenario: Deal with non-existent table and table with no primary keys
+    Given a WP install
+
+    When I run `wp search-replace foo bar no_such_table`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+    And STDOUT should end with a table containing rows:
+    | Table         | Column | Replacements | Type |
+    | no_such_table |        | skipped      |      |
+    And STDERR should be empty
+
+    When I run `wp search-replace foo bar no_such_table --no-report`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+    And STDOUT should not contain:
+      """
+      Table	Column	Replacements	Type
+      """
+    And STDERR should be:
+      """
+      Warning: No such table 'no_such_table'.
+      """
+
+    When I run `wp db query "CREATE TABLE no_key ( awesome_stuff TEXT );"`
+    And I run `wp search-replace foo bar no_key`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+    And STDOUT should end with a table containing rows:
+    | Table  | Column | Replacements | Type |
+    | no_key |        | skipped      |      |
+    And STDERR should be empty
+
+    When I run `wp search-replace foo bar no_key --no-report`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+    And STDOUT should not contain:
+      """
+      Table	Column	Replacements	Type
+      """
+    And STDERR should be:
+      """
+      Warning: No primary keys for table 'no_key'.
+      """
