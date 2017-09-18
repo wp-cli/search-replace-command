@@ -297,9 +297,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		if ( ! $this->dry_run ) {
 			if ( ! empty( $assoc_args['export'] ) ) {
-				$success_message = "Made {$total} replacements and exported to {$assoc_args['export']}.";
+				$success_message = 1 === $total ? "Made 1 replacement and exported to {$assoc_args['export']}." : "Made {$total} replacements and exported to {$assoc_args['export']}.";
 			} else {
-				$success_message = "Made $total replacements.";
+				$success_message = 1 === $total ? "Made 1 replacement." : "Made $total replacements.";
 				if ( $total && 'Default' !== WP_CLI\Utils\wp_get_cache_type() ) {
 					$success_message .= ' Please remember to flush your persistent object cache with `wp cache flush`.';
 					if ( is_multisite() ) {
@@ -375,7 +375,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql = self::esc_sql_ident( $col );
 		if ( $this->dry_run ) {
-			$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE %s;", '%' . self::esc_like( $old ) . '%' ) );
+			$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
 		} else {
 			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
 		}
@@ -395,7 +395,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql = self::esc_sql_ident( $col );
-		$where = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE %s', '%' . self::esc_like( $old ) . '%' );
+		$where = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
 		$primary_keys_sql = implode( ',', self::esc_sql_ident( $primary_keys ) );
 		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where}" );
 		foreach ( $rows as $keys ) {
