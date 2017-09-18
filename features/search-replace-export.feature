@@ -176,7 +176,7 @@ Feature: Search / replace with file export
       """
     And STDOUT should contain:
       """
-      Success: Made 1 replacements and exported to wordpress.sql.
+      Success: Made 1 replacement and exported to wordpress.sql.
       """
 
     When I run `wp db import wordpress.sql`
