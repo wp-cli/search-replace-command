@@ -585,3 +585,36 @@ Feature: Do global search/replace
       """
       Warning: No primary keys for table 'no_key'.
       """
+
+  Scenario: Search / replace is case sensitive
+    Given a WP install
+    When I run `wp post create --post_title='Case Sensitive' --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp search-replace sensitive insensitive`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace sensitive insensitive --dry-run`
+    Then STDOUT should contain:
+      """
+      Success: 0 replacements to be made.
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace Sensitive insensitive --dry-run`
+    Then STDOUT should contain:
+      """
+      Success: 1 replacement to be made.
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace Sensitive insensitive`
+    Then STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+    And STDERR should be empty
