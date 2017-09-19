@@ -5,7 +5,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $dry_run;
 	private $export_handle = false;
 	private $export_insert_size;
-
 	private $recurse_objects;
 	private $regex;
 	private $regex_flags;
@@ -263,7 +262,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 						$this->log_after_context = (int) substr( $matches[2], 1 );
 					}
 				}
-				if ( ( $log_prefixes = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log_prefixes' ) ) && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
+				if ( null !== ( $log_prefixes = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log_prefixes' ) ) && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
 					$this->log_prefixes = array( $matches[1], $matches[2] );
 				}
 				if ( STDOUT === $this->log_handle ) {
@@ -493,7 +492,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$where = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
 		$primary_keys_sql = implode( ',', self::esc_sql_ident( $primary_keys ) );
 		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where}" );
-
 		foreach ( $rows as $keys ) {
 			$where_sql = '';
 			foreach( (array) $keys as $k => $v ) {
