@@ -6,20 +6,31 @@ class SearchReplacer {
 
 	private $from, $to;
 	private $recurse_objects;
+	private $regex;
+	private $regex_flags;
+	private $regex_delimiter;
+	private $logging;
+	private $log_data;
 	private $max_recursion;
 
 	/**
 	 * @param string  $from            String we're looking to replace.
 	 * @param string  $to              What we want it to be replaced with.
 	 * @param bool    $recurse_objects Should objects be recursively replaced?
+	 * @param bool    $regex           Whether `$from` is a regular expression.
+	 * @param string  $regex_flags     Flags for regular expression.
+	 * @param string  $regex_delimiter Delimiter for regular expression.
+	 * @param bool    $logging         Whether logging.
 	 */
-	function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/' ) {
+	function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false ) {
 		$this->from = $from;
 		$this->to = $to;
 		$this->recurse_objects = $recurse_objects;
 		$this->regex = $regex;
 		$this->regex_flags = $regex_flags;
 		$this->regex_delimiter = $regex_delimiter;
+		$this->logging = $logging;
+		$this->clear_log_data();
 
 		// Get the XDebug nesting level. Will be zero (no limit) if no value is set
 		$this->max_recursion = intval( ini_get( 'xdebug.max_nesting_level' ) );
@@ -83,6 +94,9 @@ class SearchReplacer {
 			}
 
 			else if ( is_string( $data ) ) {
+				if ( $this->logging ) {
+					$old_data = $data;
+				}
 				if ( $this->regex ) {
 					$search_regex = $this->regex_delimiter;
 					$search_regex .= $this->from;
@@ -91,6 +105,9 @@ class SearchReplacer {
 					$data = preg_replace( $search_regex, $this->to, $data );
 				} else {
 					$data = str_replace( $this->from, $this->to, $data );
+				}
+				if ( $this->logging && $old_data !== $data ) {
+					$this->log_data[] = $old_data;
 				}
 			}
 
@@ -102,6 +119,21 @@ class SearchReplacer {
 		}
 
 		return $data;
+	}
+
+	/**
+	 * Gets existing data saved for this run when logging.
+	 * @return array Array of data strings, prior to replacements.
+	 */
+	public function get_log_data() {
+		return $this->log_data;
+	}
+
+	/**
+	 * Clears data stored for logging.
+	 */
+	public function clear_log_data() {
+		$this->log_data = array();
 	}
 }
 
