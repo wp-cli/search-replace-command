@@ -13,15 +13,11 @@ Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contr
 wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--format=<format>]
 ~~~
 
-Searches through all rows in a selection of tables and replaces
-appearances of the first string with the second string.
+Searches through all rows in a selection of tables and replaces appearances of the first string with the second string.
 
-By default, the command uses tables registered to the `$wpdb` object. On
-multisite, this will just be the tables for the current site unless
-`--network` is specified.
+By default, the command uses tables registered to the $wpdb object. On multisite, this will just be the tables for the current site unless --network is specified.
 
-Search/replace intelligently handles PHP serialized data, and does not
-change primary key values.
+Search/replace intelligently handles PHP serialized data, and does not change primary key values.
 
 **OPTIONS**
 
