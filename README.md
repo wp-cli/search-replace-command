@@ -10,7 +10,7 @@ Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contr
 ## Using
 
 ~~~
-wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--format=<format>]
+wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--regex-delimiter=<regex-delimiter>] [--format=<format>] [--report] [--report-changed-only]
 ~~~
 
 Searches through all rows in a selection of tables and replaces
@@ -87,6 +87,9 @@ change primary key values.
 	[--regex-flags=<regex-flags>]
 		Pass PCRE modifiers to regex search-replace (e.g. 'i' for case-insensitivity).
 
+	[--regex-delimiter=<regex-delimiter>]
+		The delimiter to use for the regex. It must be escaped if it appears in the search string. The default value is the result of `chr(1)`.
+
 	[--format=<format>]
 		Render output in a particular format.
 		---
@@ -95,6 +98,12 @@ change primary key values.
 		  - table
 		  - count
 		---
+
+	[--report]
+		Produce report. Defaults to true.
+
+	[--report-changed-only]
+		Report changed fields only. Defaults to false.
 
 **EXAMPLES**
 
