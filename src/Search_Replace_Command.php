@@ -15,6 +15,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $report;
 	private $report_changed_only;
 
+	private $log_handle = null;
+	private $log_before_context = 40;
+	private $log_after_context = 40;
+	private $log_prefixes = array( '< ', '> ' );
+	private $log_colors;
+	private $log_encoding;
+	private $log_run_data = array();
+
 	/**
 	 * Search/replace strings in the database.
 	 *
@@ -108,7 +116,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Produce report. Defaults to true.
 	 *
 	 * [--report-changed-only]
-	 * : Report changed fields only. Defaults to false.
+	 * : Report changed fields only. Defaults to false, unless logging, when it defaults to true.
+	 *
+	 * [--log[=<file>]]
+	 * : Log the items changed. If <file> is not supplied or is "-", will output to STDOUT.
+	 * Warning: causes a significant slow down, similar or worse to enabling --precise or --regex.
+	 *
+	 * [--before_context=<num>]
+	 * : For logging, number of characters to display before the old match and the new replacement. Default 40. Ignored if not logging.
+	 *
+	 * [--after_context=<num>]
+	 * : For logging, number of characters to display after the old match and the new replacement. Default 40. Ignored if not logging.
 	 *
 	 * ## EXAMPLES
 	 *
@@ -182,7 +200,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$this->export_handle = @fopen( $assoc_args['export'], 'w' );
 				if ( false === $this->export_handle ) {
 					$error = error_get_last();
-					WP_CLI::error( sprintf( 'Unable to open "%s" for writing: %s.', $assoc_args['export'], $error['message'] ) );
+					WP_CLI::error( sprintf( 'Unable to open export file "%s" for writing: %s.', $assoc_args['export'], $error['message'] ) );
 				}
 			}
 			$export_insert_size = WP_CLI\Utils\get_flag_value( $assoc_args, 'export_insert_size', 50 );
@@ -192,8 +210,42 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$php_only = true;
 		}
 
+		if ( null !== ( $log = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log' ) ) ) {
+			if ( true === $log || '-' === $log ) {
+				$this->log_handle = STDOUT;
+			} else {
+				$this->log_handle = @fopen( $assoc_args['log'], 'w' );
+				if ( false === $this->log_handle ) {
+					$error = error_get_last();
+					WP_CLI::error( sprintf( 'Unable to open log file "%s" for writing: %s.', $assoc_args['log'], $error['message'] ) );
+				}
+			}
+			if ( $this->log_handle ) {
+				if ( null !== ( $before_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'before_context' ) ) && preg_match( '/^[0-9]+$/', $before_context ) ) {
+					$this->log_before_context = (int) $before_context;
+				}
+				if ( null !== ( $after_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'after_context' ) ) && preg_match( '/^[0-9]+$/', $after_context ) ) {
+					$this->log_after_context = (int) $after_context;
+				}
+				if ( false !== ( $log_prefixes = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_PREFIXES' ) ) && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
+					$this->log_prefixes = array( $matches[1], $matches[2] );
+				}
+				if ( STDOUT === $this->log_handle ) {
+					$default_log_colors = array( 'log_table_column_id' => '%B', 'log_old' => '%R', 'log_new' => '%G' );
+				} else {
+					$default_log_colors = array( 'log_table_column_id' => '', 'log_old' => '', 'log_new' => '' );
+				}
+				if ( false !== ( $log_colors = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_COLORS' ) ) && preg_match( '/^([^,]*),([^,]*),([^,]*)$/', $log_colors, $matches ) ) {
+					$default_log_colors = array( 'log_table_column_id' => $matches[1], 'log_old' => $matches[2], 'log_new' => $matches[3] );
+				}
+				$this->log_colors = self::get_colors( $assoc_args, $default_log_colors );
+				$this->log_encoding = 0 === strpos( $wpdb->charset, 'utf8' ) ? 'UTF-8' : false;
+			}
+		}
+
 		$this->report = \WP_CLI\Utils\get_flag_value( $assoc_args, 'report', true );
-		$this->report_changed_only = \WP_CLI\Utils\get_flag_value( $assoc_args, 'report-changed-only', false );
+		// Defaults to true if logging, else defaults to false.
+		$this->report_changed_only = \WP_CLI\Utils\get_flag_value( $assoc_args, 'report-changed-only', null !== $this->log_handle );
 
 		if ( $this->regex_flags ) {
 			$php_only = true;
@@ -263,7 +315,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$count = $this->php_handle_col( $col, $primary_keys, $table, $old, $new );
 				} else {
 					$type = 'SQL';
-					$count = $this->sql_handle_col( $col, $table, $old, $new );
+					$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new );
 				}
 
 				if ( $this->report && ( $count || ! $this->report_changed_only ) ) {
@@ -369,14 +421,21 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return array( $table_report, $total_rows );
 	}
 
-	private function sql_handle_col( $col, $table, $old, $new ) {
+	private function sql_handle_col( $col, $primary_keys, $table, $old, $new ) {
 		global $wpdb;
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql = self::esc_sql_ident( $col );
 		if ( $this->dry_run ) {
-			$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
+			if ( $this->log_handle ) {
+				$count = $this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+			} else {
+				$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
+			}
 		} else {
+			if ( $this->log_handle ) {
+				$this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+			}
 			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
 		}
 
@@ -391,7 +450,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		global $wpdb;
 
 		$count = 0;
-		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter );
+		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle );
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql = self::esc_sql_ident( $col );
@@ -414,6 +473,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			if ( $value === $col_value ) {
 				continue;
+			}
+
+			if ( $this->log_handle ) {
+				$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
+				$replacer->clear_log_data();
 			}
 
 			if ( $this->dry_run ) {
@@ -547,6 +611,213 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return $backtick( $idents );
 		}
 		return array_map( $backtick, $idents );
+	}
+
+	/**
+	 * Gets the color codes from the options if any, and returns the passed in array colorized with 2 elements per entry, a color code (or '') and a reset (or '').
+	 *
+	 * @param array $assoc_args The associative argument array passed to the command.
+	 * @param array $colors Array of default percent color code strings keyed by the color contexts.
+	 * @return array Array containing 2-element arrays keyed to the input $colors array.
+	 */
+	private function get_colors( $assoc_args, $colors ) {
+		$color_reset = WP_CLI::colorize( '%n' );
+
+		$color_codes = implode( '', array_map( function ( $v ) {
+			return substr( $v, 1 );
+		}, array_keys( \cli\Colors::getColors() ) ) );
+
+		$color_codes_regex = '/^(?:%[' . $color_codes . '])*$/';
+
+		foreach ( array_keys( $colors ) as $color_col ) {
+			if ( null !== ( $col_color_flag = \WP_CLI\Utils\get_flag_value( $assoc_args, $color_col . '_color' ) ) ) {
+				if ( ! preg_match( $color_codes_regex, $col_color_flag, $matches ) ) {
+					WP_CLI::warning( "Unrecognized percent color code '$col_color_flag' for '{$color_col}_color'." );
+				} else {
+					$colors[ $color_col ] = $matches[0];
+				}
+			}
+			$colors[ $color_col ] = $colors[ $color_col ] ? array( WP_CLI::colorize( $colors[ $color_col ] ), $color_reset ) : array( '', '' );
+		}
+
+		return $colors;
+	}
+
+	/*
+	 * Logs the difference between old match and new replacement for SQL replacement.
+	 *
+	 * @param string $col Column being processed.
+	 * @param array $primary_keys Primary keys for table.
+	 * @param string $table Table being processed.
+	 * @param string $old Old value to match.
+	 * @param string $new New value to replace the old value with.
+	 * @return int Count of changed rows.
+	 */
+	private function log_sql_diff( $col, $primary_keys, $table, $old, $new ) {
+		global $wpdb;
+		if ( $primary_keys ) {
+			$esc_primary_keys = implode( ', ', self::esc_sql_ident( $primary_keys ) );
+			$primary_keys_sql = count( $primary_keys ) > 1 ? "CONCAT_WS(',', {$esc_primary_keys}), " : "{$esc_primary_keys}, ";
+		} else {
+			$primary_keys_sql = '';
+		}
+		if ( ! ( $results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}`$col` FROM `$table` WHERE `$col` LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ), ARRAY_N ) ) ) {
+			return 0;
+		}
+
+		$search_regex = '/' . preg_quote( $old, '/' ) . '/';
+
+		foreach ( $results as $result ) {
+			list( $keys, $data ) = $primary_keys ? array( $result[0], $result[1] ) : array( null, $result[0] );
+			if ( preg_match_all( $search_regex, $data, $matches, PREG_OFFSET_CAPTURE ) ) {
+				list( $old_bits, $new_bits ) = $this->log_bits( $search_regex, $data, $matches, $new );
+				$this->log_write( $col, $keys, $table, $old_bits, $new_bits );
+			}
+		}
+		return count( $results );
+	}
+
+	/*
+	 * Logs the difference between old matches and new replacements at the end of a PHP (regex) replacement of a database row.
+	 *
+	 * @param string $col Column being processed.
+	 * @param array $keys Associative array (or object) of primary key names and their values for the row being processed.
+	 * @param string $table Table being processed.
+	 * @param string $old Old value to match.
+	 * @param string $new New value to replace the old value with.
+	 * @param array $log_data Array of data strings before replacements.
+	 */
+	private function log_php_diff( $col, $keys, $table, $old, $new, $log_data ) {
+		if ( $this->regex ) {
+			$search_regex = $this->regex_delimiter . $old . $this->regex_delimiter . $this->regex_flags;
+		} else {
+			$search_regex = '/' . preg_quote( $old, '/' ) . '/';
+		}
+
+		$old_bits = $new_bits = array();
+		foreach ( $log_data as $data ) {
+			if ( preg_match_all( $search_regex, $data, $matches, PREG_OFFSET_CAPTURE ) ) {
+				$bits = $this->log_bits( $search_regex, $data, $matches, $new );
+				$old_bits = array_merge( $old_bits, $bits[0] );
+				$new_bits = array_merge( $new_bits, $bits[1] );
+			}
+		}
+		if ( $old_bits ) {
+			$this->log_write( $col, $keys, $table, $old_bits, $new_bits );
+		}
+	}
+
+	/**
+	 * Returns the arrays of old matches and new replacements based on the passed-in matches, with context.
+	 *
+	 * @param string $search_regex The search regular expression.
+	 * @param string $old_data Existing data being processed.
+	 * @param array $old_matches Old matches array returned by `preg_match_all()`.
+	 * @param string $new New value to replace the old value with.
+	 * @return array Two element array containing the array of old match log strings and the array of new replacement log strings with before/after contexts.
+	 */
+	private function log_bits( $search_regex, $old_data, $old_matches, $new ) {
+		$encoding = $this->log_encoding;
+		if ( ! $encoding && ( $this->log_before_context || $this->log_after_context ) && function_exists( 'mb_detect_encoding' ) ) {
+			$encoding = mb_detect_encoding( $old_data, null, true /*strict*/ );
+		}
+
+		// Generate a new data matches analog of the old data matches by simulating a `preg_replace()`.
+		$is_regex = $this->regex;
+		$i = $diff = 0;
+		$new_matches = array();
+		$new_data = preg_replace_callback( $search_regex, function ( $matches ) use ( $old_matches, $new, $is_regex, &$new_matches, &$i, &$diff ) {
+			if ( $is_regex ) {
+				// Sub in any back references, "$1", "\2" etc, in the replacement string.
+				$new = preg_replace_callback( '/(?<!\\\\)(?:\\\\\\\\)*((?:\\\\|\\$)[0-9]{1,2}|\\${[0-9]{1,2}\\})/', function ( $m ) use ( $matches ) {
+					$idx = (int) str_replace( array( '\\', '$', '{', '}' ), '', $m[0] );
+					return isset( $matches[ $idx ] ) ? $matches[ $idx ] : '';
+				}, $new );
+				$new = str_replace( '\\\\', '\\', $new ); // Unescape any backslashed backslashes.
+			}
+
+			$new_matches[0][ $i ][0] = $new;
+			$new_matches[0][ $i ][1] = $old_matches[0][ $i ][1] + $diff;
+			$diff += strlen( $new ) - strlen( $old_matches[0][ $i ][0] );
+			$i++;
+			return $new;
+		}, $old_data );
+
+		$old_bits = $new_bits = array();
+		$append_next = false;
+		$last_old_offset = $last_new_offset = 0;
+		$match_cnt = count( $old_matches[0] );
+		for ( $i = 0; $i < $match_cnt; $i++ ) {
+			$old_match = $old_matches[0][ $i ][0];
+			$old_offset = $old_matches[0][ $i ][1];
+			$new_match = $new_matches[0][ $i ][0];
+			$new_offset = $new_matches[0][ $i ][1];
+
+			$old_log = $this->log_colors['log_old'][0] . $old_match . $this->log_colors['log_old'][1];
+			$new_log = $this->log_colors['log_new'][0] . $new_match . $this->log_colors['log_new'][1];
+
+			$old_before = $old_after = $new_before = $new_after = '';
+			$after_shortened = false;
+
+			// Offsets are in bytes, so need to use `strlen()` and `substr()` before using `safe_substr()`.
+			if ( $this->log_before_context && $old_offset && ! $append_next ) {
+				$old_before = \cli\safe_substr( substr( $old_data, $last_old_offset, $old_offset - $last_old_offset ), -$this->log_before_context, null /*length*/, false /*is_width*/, $encoding );
+				$new_before = \cli\safe_substr( substr( $new_data, $last_new_offset, $new_offset - $last_new_offset ), -$this->log_before_context, null /*length*/, false /*is_width*/, $encoding );
+			}
+			if ( $this->log_after_context ) {
+				$old_end_offset = $old_offset + strlen( $old_match );
+				$new_end_offset = $new_offset + strlen( $new_match );
+				$old_after = \cli\safe_substr( substr( $old_data, $old_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
+				$new_after = \cli\safe_substr( substr( $new_data, $new_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
+				// To lessen context duplication in output, shorten the after context if it overlaps with the next match.
+				if ( $i + 1 < $match_cnt && $old_end_offset + strlen( $old_after ) > $old_matches[0][ $i + 1 ][1] ) {
+					$old_after = substr( $old_after, 0, $old_matches[0][ $i + 1 ][1] - $old_end_offset );
+					$new_after = substr( $new_after, 0, $new_matches[0][ $i + 1 ][1] - $new_end_offset );
+					$after_shortened = true;
+					// On the next iteration, will append with no before context.
+				}
+			}
+
+			if ( $append_next ) {
+				$cnt = count( $old_bits );
+				$old_bits[ $cnt - 1 ] .= $old_log . $old_after;
+				$new_bits[ $cnt - 1 ] .= $new_log . $new_after;
+			} else {
+				$old_bits[] = $old_before . $old_log . $old_after;
+				$new_bits[] = $new_before . $new_log . $new_after;
+			}
+			$append_next = $after_shortened;
+			$last_old_offset = $old_offset;
+			$last_new_offset = $new_offset;
+		}
+
+		return array( $old_bits, $new_bits );
+	}
+
+	/*
+	 * Output the log strings.
+	 *
+	 * @param string $col Column being processed.
+	 * @param array $keys Associative array (or object) of primary key names and their values for the row being processed.
+	 * @param string $table Table being processed.
+	 * @param array $old_bits Array of old match log strings.
+	 * @param array $new_bits Array of new replacement log strings.
+	 */
+	private function log_write( $col, $keys, $table, $old_bits, $new_bits ) {
+		$id_log = $keys ? ( ':' . implode( ',', (array) $keys ) ) : '';
+		$table_column_id_log = $this->log_colors['log_table_column_id'][0] . $table . '.' . $col . $id_log . $this->log_colors['log_table_column_id'][1];
+
+		$old_log = str_replace( array( "\r\n", "\n" ), ' ', implode( ' [...] ', $old_bits ) );
+		$new_log = str_replace( array( "\r\n", "\n" ), ' ', implode( ' [...] ', $new_bits ) );
+
+		if ( $this->log_prefixes[0] ) {
+			$old_log = $this->log_colors['log_old'][0] . $this->log_prefixes[0] . $this->log_colors['log_old'][1] . $old_log;
+		}
+		if ( $this->log_prefixes[1] ) {
+			$new_log = $this->log_colors['log_new'][0] . $this->log_prefixes[1] . $this->log_colors['log_new'][1] . $new_log;
+		}
+
+		fwrite( $this->log_handle, "{$table_column_id_log}\n{$old_log}\n{$new_log}\n" );
 	}
 
 }
