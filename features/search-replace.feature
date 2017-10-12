@@ -658,7 +658,7 @@ Feature: Do global search/replace
       """
       < Content
       """
-	And the replace.log file should contain:
+    And the replace.log file should contain:
       """
       wp_posts.post_content:{POST_ID}
       < Content_baz_12345678901234567890_baz_12345678901234567890
@@ -913,7 +913,7 @@ Feature: Do global search/replace
       """
       wp_options.option_value:
       """
-	And the replace.log file should contain:
+    And the replace.log file should contain:
       """
       < Just another WordPress site
       > Just another WP site
