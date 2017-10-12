@@ -122,44 +122,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Log the items changed. If <file> is not supplied or is "-", will output to STDOUT.
 	 * Warning: causes a significant slow down, similar or worse to enabling --precise or --regex.
 	 *
-	 * [--log_context=<before_num,after_num>]
-	 * : Number of characters to display before and after the match. One number sets both before and after. Two comma-separated numbers set before and after respectively. Defaults to 40. Ignored if not logging.
+	 * [--before_context=<num>]
+	 * : For logging, number of characters to display before the old match and the new replacement. Default 40. Ignored if not logging.
 	 *
-	 * [--log_prefixes=<old_prefix,new_prefix>]
-	 * : The old and new prefixes to prepend to the log lines for old match and new replacement, comma-separated. Defaults to '< ,> '. Use ',' for no prefixes. Ignored if not logging.
-	 *
-	 * [--log_colors=<table_column_id_color,old_color,new_color>]
-	 * : Percent color codes to use, comma-separated. The first is for 'table:column:id', default '%B'. The second is for the old match, default '%R'. The third is for the new replacement, default '%G'. The defaults are only used if logging to STDOUT. Use ',,' for no colors. Ignored if not logging.
-	 *
-	 * The percent color codes available are:
-	 * '%y' Yellow (dark) (mustard)
-	 * '%g' Green (dark)
-	 * '%b' Blue (dark)
-	 * '%r' Red (dark)
-	 * '%m' Magenta (dark)
-	 * '%c' Cyan (dark)
-	 * '%w' White (dark) (light gray)
-	 * '%k' Black
-	 * '%Y' Yellow (bright)
-	 * '%G' Green (bright)
-	 * '%B' Blue (bright)
-	 * '%R' Red (bright)
-	 * '%M' Magenta (bright)
-	 * '%C' Cyan (bright)
-	 * '%W' White
-	 * '%K' Black (bright) (dark gray)
-	 * '%3' Yellow background (dark) (mustard)
-	 * '%2' Green background (dark)
-	 * '%4' Blue background (dark)
-	 * '%1' Red background (dark)
-	 * '%5' Magenta background (dark)
-	 * '%6' Cyan background (dark)
-	 * '%7' White background (dark) (light gray)
-	 * '%0' Black background
-	 * '%8' Reverse
-	 * '%U' Underline
-	 * '%F' Blink (unlikely to work)
-	 * They can be concatenated.
+	 * [--after_context=<num>]
+	 * : For logging, number of characters to display after the old match and the new replacement. Default 40. Ignored if not logging.
 	 *
 	 * ## EXAMPLES
 	 *
@@ -254,15 +221,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 			}
 			if ( $this->log_handle ) {
-				if ( null !== ( $log_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log_context' ) ) && preg_match( '/^([0-9]+)(,[0-9]+)?$/', $log_context, $matches ) ) {
-					if ( isset( $matches[1] ) ) {
-						$this->log_before_context = $this->log_after_context = (int) $matches[1];
-					}
-					if ( isset( $matches[2] ) ) {
-						$this->log_after_context = (int) substr( $matches[2], 1 );
-					}
+				if ( null !== ( $before_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'before_context' ) ) && preg_match( '/^[0-9]+$/', $before_context ) ) {
+					$this->log_before_context = (int) $before_context;
 				}
-				if ( null !== ( $log_prefixes = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log_prefixes' ) ) && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
+				if ( null !== ( $after_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'after_context' ) ) && preg_match( '/^[0-9]+$/', $after_context ) ) {
+					$this->log_after_context = (int) $after_context;
+				}
+				if ( false !== ( $log_prefixes = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_PREFIXES' ) ) && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
 					$this->log_prefixes = array( $matches[1], $matches[2] );
 				}
 				if ( STDOUT === $this->log_handle ) {
@@ -270,7 +235,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				} else {
 					$default_log_colors = array( 'log_table_column_id' => '', 'log_old' => '', 'log_new' => '' );
 				}
-				if ( null !== ( $log_colors = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log_colors' ) ) && preg_match( '/^([^,]*),([^,]*),([^,]*)$/', $log_colors, $matches ) ) {
+				if ( false !== ( $log_colors = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_COLORS' ) ) && preg_match( '/^([^,]*),([^,]*),([^,]*)$/', $log_colors, $matches ) ) {
 					$default_log_colors = array( 'log_table_column_id' => $matches[1], 'log_old' => $matches[2], 'log_new' => $matches[3] );
 				}
 				$this->log_colors = self::get_colors( $assoc_args, $default_log_colors );
