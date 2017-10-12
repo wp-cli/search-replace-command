@@ -625,7 +625,7 @@ Feature: Do global search/replace
     When I run `wp post create --post_title='Title_baz__baz_' --post_content='Content_baz_12345678901234567890_baz_12345678901234567890' --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp search-replace '_baz_' '_' --dry-run --log --log_context=10`
+    When I run `wp search-replace '_baz_' '_' --dry-run --log  --before_context=10 --after_context=10`
     Then STDOUT should contain:
       """
       Success: 2 replacements to be made.
@@ -673,7 +673,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     # kana with diacritic and decomposed "a" + umlaut.
-    When I run `wp search-replace '_baz_' '_バäz_' --log=- --log_context=10,20`
+    When I run `wp search-replace '_baz_' '_バäz_' --log=- --before_context=10 --after_context=20`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
@@ -687,7 +687,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     # Testing UTF-8 context
-    When I run `wp search-replace 'z_' 'zzzz_' --log --log_context=2,1`
+    When I run `wp search-replace 'z_' 'zzzz_' --log --before_context=2 --after_context=1`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
@@ -716,7 +716,7 @@ Feature: Do global search/replace
       _baz1_ _baz1_12345678901234567890123456789012345678901234567890_baz1_ _baz1_1234567890123456789012345678901234567890
       """
 
-    When I run `wp search-replace '_baz1_' '_bar1_' wp_options --log --log_context=10`
+    When I run `wp search-replace '_baz1_' '_bar1_' wp_options --log --before_context=10 --after_context=10`
     Then STDOUT should contain:
       """
       < _baz1_ _baz1_1234567890 [...] 1234567890_baz1_ _baz1_1234567890
@@ -726,7 +726,7 @@ Feature: Do global search/replace
 
     When I run `wp option set foobar2 '12345678901234567890_bar2_1234567890_bar2_ _bar2_ _bar2_'`
 
-    When I run `wp search-replace '_bar2_' '_baz2baz2_' wp_options --log --log_context=10`
+    When I run `wp search-replace '_bar2_' '_baz2baz2_' wp_options --log --before_context=10 --after_context=10`
     Then STDOUT should contain:
       """
       < 1234567890_bar2_1234567890 [...] 1234567890_bar2_ _bar2_ _bar2_
@@ -740,7 +740,7 @@ Feature: Do global search/replace
       12345678901234567890_baz2baz2_1234567890_baz2baz2_ _baz2baz2_ _baz2baz2_
       """
 
-    When I run `wp search-replace '_baz2baz2_' '_barz2_' wp_options --log --log_context=10,4`
+    When I run `wp search-replace '_baz2baz2_' '_barz2_' wp_options --log  --before_context=10 --after_context=4`
     Then STDOUT should contain:
       """
       < 1234567890_baz2baz2_1234 [...] 1234567890_baz2baz2_ _baz2baz2_ _baz2baz2_
@@ -778,7 +778,7 @@ Feature: Do global search/replace
     When I run `wp post create --post_title='Title_baz__boz_' --post_content='Content_baz_1234567890_bez_1234567890_biz_1234567890_boz_1234567890_buz_' --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp search-replace '_b[aeiou]z_' '_bz_' --regex --dry-run --log --log_context=11`
+    When I run `wp search-replace '_b[aeiou]z_' '_bz_' --regex --dry-run --log  --before_context=11 --after_context=11`
     Then STDOUT should contain:
       """
       Success: 2 replacements to be made.
@@ -802,7 +802,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' --regex --log --log_context=11`
+    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' --regex --log  --before_context=11 --after_context=11`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
@@ -837,7 +837,7 @@ Feature: Do global search/replace
   Scenario: Logging with prefixes and custom colors
     Given a WP install
 
-    When I run `wp search-replace Just Yet --dry-run --log --log_prefixes='- ,+ '`
+    When I run `WP_CLI_SEARCH_REPLACE_LOG_PREFIXES='- ,+ ' wp search-replace Just Yet --dry-run --log`
     Then STDOUT should contain:
       """
       - Just another WordPress site
@@ -845,7 +845,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `wp search-replace Just Yet --dry-run --log --log_prefixes=,`
+    When I run `WP_CLI_SEARCH_REPLACE_LOG_PREFIXES=',' wp search-replace Just Yet --dry-run --log`
     Then STDOUT should not contain:
       """
       < Just
@@ -876,7 +876,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `SHELL_PIPE=0 wp search-replace WordPress WP --dry-run --log --log_colors=%b,%r,%g`
+    When I run `SHELL_PIPE=0 WP_CLI_SEARCH_REPLACE_LOG_COLORS='%b,%r,%g' wp search-replace WordPress WP --dry-run --log`
     Then STDOUT should contain:
       """
       [34mwp_options.option_value:
@@ -888,7 +888,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `SHELL_PIPE=0 wp search-replace WordPress WP --dry-run --log=replace.log --log_colors=%b,%r,%g`
+    When I run `SHELL_PIPE=0 WP_CLI_SEARCH_REPLACE_LOG_COLORS='%b,%r,%g' wp search-replace WordPress WP --dry-run --log=replace.log`
     Then STDOUT should not contain:
       """
       wp_options.option_value
@@ -920,7 +920,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `SHELL_PIPE=0 wp search-replace WordPress WP --dry-run --log --log_colors=,,`
+    When I run `SHELL_PIPE=0 WP_CLI_SEARCH_REPLACE_LOG_COLORS=',,' wp search-replace WordPress WP --dry-run --log`
     Then STDOUT should contain:
       """
       wp_options.option_value:
