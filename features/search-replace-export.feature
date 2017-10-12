@@ -157,7 +157,7 @@ Feature: Search / replace with file export
     When I try `wp search-replace example.com example.net --export=foo/bar.sql`
     Then STDERR should contain:
       """
-      Error: Unable to open "foo/bar.sql" for writing:
+      Error: Unable to open export file "foo/bar.sql" for writing:
       """
 
   Scenario: Search / replace specific table

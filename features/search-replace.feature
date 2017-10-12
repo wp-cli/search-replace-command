@@ -618,3 +618,316 @@ Feature: Do global search/replace
       Success: Made 1 replacement.
       """
     And STDERR should be empty
+
+  Scenario: Logging with simple replace
+    Given a WP install
+
+    When I run `wp post create --post_title='Title_baz__baz_' --post_content='Content_baz_12345678901234567890_baz_12345678901234567890' --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp search-replace '_baz_' '_' --dry-run --log  --before_context=10 --after_context=10`
+    Then STDOUT should contain:
+      """
+      Success: 2 replacements to be made.
+      """
+    And STDOUT should end with a table containing rows:
+    | Table    | Column       | Replacements | Type |
+    | wp_posts | post_content | 1            | SQL  |
+    | wp_posts | post_title   | 1            | SQL  |
+
+    And STDOUT should contain:
+      """
+      wp_posts.post_content:{POST_ID}
+      < Content_baz_1234567890 [...] 1234567890_baz_1234567890
+      > Content_1234567890 [...] 1234567890_1234567890
+      """
+    And STDOUT should contain:
+      """
+      wp_posts.post_title:{POST_ID}
+      < Title_baz__baz_
+      > Title__
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace '_baz_' '' --dry-run --log=replace.log`
+    Then STDOUT should contain:
+      """
+      Success: 2 replacements to be made.
+      """
+    And STDOUT should not contain:
+      """
+      < Content
+      """
+    And the replace.log file should contain:
+      """
+      wp_posts.post_content:{POST_ID}
+      < Content_baz_12345678901234567890_baz_12345678901234567890
+      > Content1234567890123456789012345678901234567890
+      """
+    And the replace.log file should contain:
+      """
+      wp_posts.post_title:{POST_ID}
+      < Title_baz__baz_
+      > Title
+      """
+    And STDERR should be empty
+
+    # kana with diacritic and decomposed "a" + umlaut.
+    When I run `wp search-replace '_baz_' '_バäz_' --log=- --before_context=10 --after_context=20`
+    Then STDOUT should contain:
+      """
+      Success: Made 2 replacements.
+      """
+    And STDOUT should contain:
+      """
+      wp_posts.post_content:{POST_ID}
+      < Content_baz_12345678901234567890 [...] 1234567890_baz_12345678901234567890
+      > Content_バäz_12345678901234567890 [...] 1234567890_バäz_12345678901234567890
+      """
+    And STDERR should be empty
+
+    # Testing UTF-8 context
+    When I run `wp search-replace 'z_' 'zzzz_' --log --before_context=2 --after_context=1`
+    Then STDOUT should contain:
+      """
+      Success: Made 2 replacements.
+      """
+    And STDOUT should contain:
+      """
+      wp_posts.post_content:{POST_ID}
+      < バäz_1 [...] バäz_1
+      > バäzzzz_1 [...] バäzzzz_1
+      """
+    And STDERR should be empty
+
+    When I run `wp option set foobar '_bar1_ _bar1_12345678901234567890123456789012345678901234567890_bar1_ _bar1_1234567890123456789012345678901234567890'`
+
+    When I run `wp search-replace '_bar1_' '_baz1_' wp_options --log`
+    Then STDOUT should contain:
+      """
+      < _bar1_ _bar1_1234567890123456789012345678901234567890 [...] 1234567890123456789012345678901234567890_bar1_ _bar1_1234567890123456789012345678901234567890
+      > _baz1_ _baz1_1234567890123456789012345678901234567890 [...] 1234567890123456789012345678901234567890_baz1_ _baz1_1234567890123456789012345678901234567890
+      """
+    And STDERR should be empty
+
+    When I run `wp option get foobar`
+    Then STDOUT should be:
+      """
+      _baz1_ _baz1_12345678901234567890123456789012345678901234567890_baz1_ _baz1_1234567890123456789012345678901234567890
+      """
+
+    When I run `wp search-replace '_baz1_' '_bar1_' wp_options --log --before_context=10 --after_context=10`
+    Then STDOUT should contain:
+      """
+      < _baz1_ _baz1_1234567890 [...] 1234567890_baz1_ _baz1_1234567890
+      > _bar1_ _bar1_1234567890 [...] 1234567890_bar1_ _bar1_1234567890
+      """
+    And STDERR should be empty
+
+    When I run `wp option set foobar2 '12345678901234567890_bar2_1234567890_bar2_ _bar2_ _bar2_'`
+
+    When I run `wp search-replace '_bar2_' '_baz2baz2_' wp_options --log --before_context=10 --after_context=10`
+    Then STDOUT should contain:
+      """
+      < 1234567890_bar2_1234567890 [...] 1234567890_bar2_ _bar2_ _bar2_
+      > 1234567890_baz2baz2_1234567890 [...] 1234567890_baz2baz2_ _baz2baz2_ _baz2baz2_
+      """
+    And STDERR should be empty
+
+    When I run `wp option get foobar2`
+    Then STDOUT should be:
+      """
+      12345678901234567890_baz2baz2_1234567890_baz2baz2_ _baz2baz2_ _baz2baz2_
+      """
+
+    When I run `wp search-replace '_baz2baz2_' '_barz2_' wp_options --log  --before_context=10 --after_context=4`
+    Then STDOUT should contain:
+      """
+      < 1234567890_baz2baz2_1234 [...] 1234567890_baz2baz2_ _baz2baz2_ _baz2baz2_
+      > 1234567890_barz2_1234 [...] 1234567890_barz2_ _barz2_ _barz2_
+      """
+    And STDERR should be empty
+
+    When I run `wp option set foobar3 '_bar3 _bar3 _bar3 _bar3'`
+
+    When I run `wp search-replace '_bar3' 'baz3' wp_options --log`
+    Then STDOUT should contain:
+      """
+      < _bar3 _bar3 _bar3 _bar3
+      > baz3 baz3 baz3 baz3
+      """
+    And STDERR should be empty
+
+    When I run `wp option get foobar3`
+    Then STDOUT should be:
+      """
+      baz3 baz3 baz3 baz3
+      """
+
+    When I run `wp search-replace 'baz3' 'baz\3' wp_options --dry-run --log`
+    Then STDOUT should contain:
+      """
+      < baz3 baz3 baz3 baz3
+      > baz\3 baz\3 baz\3 baz\3
+      """
+    And STDERR should be empty
+
+  Scenario: Logging with regex replace
+    Given a WP install
+
+    When I run `wp post create --post_title='Title_baz__boz_' --post_content='Content_baz_1234567890_bez_1234567890_biz_1234567890_boz_1234567890_buz_' --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp search-replace '_b[aeiou]z_' '_bz_' --regex --dry-run --log  --before_context=11 --after_context=11`
+    Then STDOUT should contain:
+      """
+      Success: 2 replacements to be made.
+      """
+    And STDOUT should end with a table containing rows:
+    | Table    | Column       | Replacements | Type |
+    | wp_posts | post_content | 1            | PHP  |
+    | wp_posts | post_title   | 1            | PHP  |
+
+    And STDOUT should contain:
+      """
+      wp_posts.post_content:{POST_ID}
+      < Content_baz_1234567890_bez_1234567890_biz_1234567890_boz_1234567890_buz_
+      > Content_bz_1234567890_bz_1234567890_bz_1234567890_bz_1234567890_bz_
+      """
+    And STDOUT should contain:
+      """
+      wp_posts.post_title:{POST_ID}
+      < Title_baz__boz_
+      > Title_bz__bz_
+      """
+    And STDERR should be empty
+
+    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' --regex --log  --before_context=11 --after_context=11`
+    Then STDOUT should contain:
+      """
+      Success: Made 2 replacements.
+      """
+
+    And STDOUT should contain:
+      """
+      wp_posts.post_content:{POST_ID}
+      < Content_baz_1234567890_bez_1234567890_biz_1234567890_boz_1234567890_buz_
+      > Content_ab\1z__baz_1234567890_eb\1z__bez_1234567890_ib\1z__biz_1234567890_ob\1z__boz_1234567890_ub\1z__buz_
+      """
+    And STDOUT should contain:
+      """
+      wp_posts.post_title:{POST_ID}
+      < Title_baz__boz_
+      > Title_ab\1z__baz__ob\1z__boz_
+      """
+    And STDERR should be empty
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title_ab\1z__baz__ob\1z__boz_
+      """
+
+    When I run `wp post get {POST_ID} --field=content`
+    Then STDOUT should be:
+      """
+      Content_ab\1z__baz_1234567890_eb\1z__bez_1234567890_ib\1z__biz_1234567890_ob\1z__boz_1234567890_ub\1z__buz_
+      """
+
+  Scenario: Logging with prefixes and custom colors
+    Given a WP install
+
+    When I run `WP_CLI_SEARCH_REPLACE_LOG_PREFIXES='- ,+ ' wp search-replace Just Yet --dry-run --log`
+    Then STDOUT should contain:
+      """
+      - Just another WordPress site
+      + Yet another WordPress site
+      """
+    And STDERR should be empty
+
+    When I run `WP_CLI_SEARCH_REPLACE_LOG_PREFIXES=',' wp search-replace Just Yet --dry-run --log`
+    Then STDOUT should not contain:
+      """
+      < Just
+      """
+    And STDOUT should contain:
+      """
+      Just
+      """
+    And STDOUT should not contain:
+      """
+      > Yet
+      """
+    And STDOUT should contain:
+      """
+      Yet
+      """
+    And STDERR should be empty
+
+    When I run `SHELL_PIPE=0 wp search-replace WordPress WP --dry-run --log`
+    Then STDOUT should contain:
+      """
+      [34;1mwp_options.option_value:
+      """
+    And STDOUT should contain:
+      """
+      [31;1m< [0mJust another [31;1mWordPress[0m site
+      [32;1m> [0mJust another [32;1mWP[0m site
+      """
+    And STDERR should be empty
+
+    When I run `SHELL_PIPE=0 WP_CLI_SEARCH_REPLACE_LOG_COLORS='%b,%r,%g' wp search-replace WordPress WP --dry-run --log`
+    Then STDOUT should contain:
+      """
+      [34mwp_options.option_value:
+      """
+    And STDOUT should contain:
+      """
+      [31m< [0mJust another [31mWordPress[0m site
+      [32m> [0mJust another [32mWP[0m site
+      """
+    And STDERR should be empty
+
+    When I run `SHELL_PIPE=0 WP_CLI_SEARCH_REPLACE_LOG_COLORS='%b,%r,%g' wp search-replace WordPress WP --dry-run --log=replace.log`
+    Then STDOUT should not contain:
+      """
+      wp_options.option_value
+      """
+    And the replace.log file should contain:
+      """
+      [34mwp_options.option_value:
+      """
+    And the replace.log file should contain:
+      """
+      [31m< [0mJust another [31mWordPress[0m site
+      [32m> [0mJust another [32mWP[0m site
+      """
+    And STDERR should be empty
+
+    When I run `SHELL_PIPE=0 wp search-replace WordPress WP --dry-run --log=replace.log`
+    Then STDOUT should not contain:
+      """
+      wp_options.option_value
+      """
+    And the replace.log file should contain:
+      """
+      wp_options.option_value:
+      """
+    And the replace.log file should contain:
+      """
+      < Just another WordPress site
+      > Just another WP site
+      """
+    And STDERR should be empty
+
+    When I run `SHELL_PIPE=0 WP_CLI_SEARCH_REPLACE_LOG_COLORS=',,' wp search-replace WordPress WP --dry-run --log`
+    Then STDOUT should contain:
+      """
+      wp_options.option_value:
+      """
+    And STDOUT should contain:
+      """
+      < Just another WordPress site
+      > Just another WP site
+      """
+    And STDERR should be empty
