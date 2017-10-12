@@ -10,7 +10,7 @@ Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contr
 ## Using
 
 ~~~
-wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--regex-delimiter=<regex-delimiter>] [--format=<format>] [--report] [--report-changed-only]
+wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--regex-delimiter=<regex-delimiter>] [--format=<format>] [--report] [--report-changed-only] [--log[=<file>]] [--before_context=<num>] [--after_context=<num>]
 ~~~
 
 Searches through all rows in a selection of tables and replaces
@@ -103,7 +103,17 @@ change primary key values.
 		Produce report. Defaults to true.
 
 	[--report-changed-only]
-		Report changed fields only. Defaults to false.
+		Report changed fields only. Defaults to false, unless logging, when it defaults to true.
+
+	[--log[=<file>]]
+		Log the items changed. If <file> is not supplied or is "-", will output to STDOUT.
+		Warning: causes a significant slow down, similar or worse to enabling --precise or --regex.
+
+	[--before_context=<num>]
+		For logging, number of characters to display before the old match and the new replacement. Default 40. Ignored if not logging.
+
+	[--after_context=<num>]
+		For logging, number of characters to display after the old match and the new replacement. Default 40. Ignored if not logging.
 
 **EXAMPLES**
 
