@@ -381,6 +381,34 @@ Feature: Do global search/replace
       """
     And the return code should be 1
 
+    When I try `wp search-replace 'regex error)' '' --regex`
+    Then STDERR should be:
+      """
+      Error: The regex pattern 'regex error)' with default delimiter 'chr(1)' and no flags fails.
+      """
+    And the return code should be 1
+
+    When I try `wp search-replace 'regex error)' '' --regex --regex-flags=u`
+    Then STDERR should be:
+      """
+      Error: The regex pattern 'regex error)' with default delimiter 'chr(1)' and flags 'u' fails.
+      """
+    And the return code should be 1
+
+    When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/`
+    Then STDERR should be:
+      """
+      Error: The regex '/regex error)/' fails.
+      """
+    And the return code should be 1
+
+    When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/ --regex-flags=u`
+    Then STDERR should be:
+      """
+      Error: The regex '/regex error)/u' fails.
+      """
+    And the return code should be 1
+
   Scenario: Formatting as count-only
     Given a WP install
     And I run `wp option set foo 'ALPHA.example.com'`
