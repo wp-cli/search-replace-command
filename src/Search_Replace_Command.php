@@ -163,10 +163,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$php_only        = \WP_CLI\Utils\get_flag_value( $assoc_args, 'precise' );
 		$this->recurse_objects = \WP_CLI\Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
-		$this->regex           =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex' );
-		$this->regex_flags     =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags' );
-		$this->regex_delimiter =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', chr( 1 ) );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
+
+		if ( ( $this->regex = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false ) ) ) {
+			$this->regex_flags = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags', false );
+			$default_regex_delimiter = false;
+			$this->regex_delimiter = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '' );
+			if ( '' === $this->regex_delimiter ) {
+				$this->regex_delimiter = chr( 1 );
+				$default_regex_delimiter = true;
+			}
+		}
 
 		if ( ! empty( $this->regex ) ) {
 			if ( '' === $this->regex_delimiter ) {
@@ -177,7 +184,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$search_regex .= $this->regex_delimiter;
 			$search_regex .= $this->regex_flags;
 			if ( false === @preg_match( $search_regex, '' ) ) {
-				\WP_CLI::error( "The regex '$search_regex' fails." );
+				if ( $default_regex_delimiter ) {
+					$flags_msg = $this->regex_flags ? "flags '$this->regex_flags'" : "no flags";
+					$msg = "The regex pattern '$old' with default delimiter 'chr(1)' and {$flags_msg} fails.";
+				} else {
+					$msg = "The regex '$search_regex' fails.";
+				}
+				WP_CLI::error( $msg );
 			}
 		}
 
