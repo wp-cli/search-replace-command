@@ -339,12 +339,12 @@ Feature: Search / replace with file export
     And I run `wp post create --post_title=test-remove-placeholder-escape% --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp search-replace baz bar --export`
+    When I run `wp search-replace baz bar --export | grep test-remove-placeholder-escape`
     Then STDOUT should contain:
       """
       'test-remove-placeholder-escape%'
       """
-    And STDOUT should contain:
+    And STDOUT should not contain:
       """
       'test-remove-placeholder-escape{'
       """
