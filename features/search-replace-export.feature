@@ -333,3 +333,18 @@ Feature: Search / replace with file export
       wp_users	display_name	0	PHP
       """
     And STDERR should be empty
+
+  Scenario: Search / replace should remove placeholder escape on export
+    Given a WP install
+    And I run `wp post create --post_title=test-remove-placeholder-escape% --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp search-replace baz bar --export`
+    Then STDOUT should contain:
+      """
+      'test-remove-placeholder-escape%'
+      """
+    And STDOUT should contain:
+      """
+      'test-remove-placeholder-escape{'
+      """
