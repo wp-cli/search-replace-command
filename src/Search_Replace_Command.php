@@ -547,7 +547,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 			if( ( $index % $export_insert_size == 0 && $index > 0 ) || $index == $count ) {
 				$sql .= ";\n";
 
-				$sql = $wpdb->prepare( $sql, array_values( $values ) );
+				if( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
+					// since 4.8.3
+					$sql = $wpdb->remove_placeholder_escape( $wpdb->prepare( $sql, array_values( $values ) ) );
+				} else {
+					// 4.8.2 or less
+					$sql = $wpdb->prepare( $sql, array_values( $values ) );
+				}
+
 				fwrite( $this->export_handle, $sql );
 
 				// If there is still rows to loop, reset $sql and $values variables.
