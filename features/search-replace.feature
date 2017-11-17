@@ -250,7 +250,7 @@ Feature: Do global search/replace
   Scenario: Search and replace with the same terms
     Given a WP install
 
-    When I run `wp search-replace foo foo`
+    When I try `wp search-replace foo foo`
     Then STDERR should be:
       """
       Warning: Replacement value 'foo' is identical to search value 'foo'. Skipping operation.
@@ -575,7 +575,7 @@ Feature: Do global search/replace
     | no_such_table |        | skipped      |      |
     And STDERR should be empty
 
-    When I run `wp search-replace foo bar no_such_table --no-report`
+    When I try `wp search-replace foo bar no_such_table --no-report`
     Then STDOUT should contain:
       """
       Success: Made 0 replacements.
@@ -600,7 +600,7 @@ Feature: Do global search/replace
     | no_key |        | skipped      |      |
     And STDERR should be empty
 
-    When I run `wp search-replace foo bar no_key --no-report`
+    When I try `wp search-replace foo bar no_key --no-report`
     Then STDOUT should contain:
       """
       Success: Made 0 replacements.
