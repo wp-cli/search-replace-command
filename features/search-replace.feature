@@ -110,6 +110,7 @@ Feature: Do global search/replace
       """
       Error: Couldn't find any tables matching: wp_opt*on
       """
+    And the return code should be 1
 
     When I run `wp search-replace foo burrito wp_opt\* wp_postme\*`
     Then STDOUT should be a table containing rows:
@@ -256,6 +257,7 @@ Feature: Do global search/replace
       Warning: Replacement value 'foo' is identical to search value 'foo'. Skipping operation.
       """
     And STDOUT should be empty
+    And the return code should be 0
 
   Scenario: Search and replace a table that has a multi-column primary key
     Given a WP install
@@ -588,6 +590,7 @@ Feature: Do global search/replace
       """
       Warning: No such table 'no_such_table'.
       """
+    And the return code should be 0
 
     When I run `wp db query "CREATE TABLE no_key ( awesome_stuff TEXT );"`
     And I run `wp search-replace foo bar no_key`
@@ -613,6 +616,7 @@ Feature: Do global search/replace
       """
       Warning: No primary keys for table 'no_key'.
       """
+    And the return code should be 0
 
   Scenario: Search / replace is case sensitive
     Given a WP install
