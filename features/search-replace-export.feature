@@ -20,7 +20,7 @@ Feature: Search / replace with file export
       http://example.com
       """
 
-    When I run `wp search-replace example.com example.net --skip-tables=wp_options --export
+    When I run `wp search-replace example.com example.net --skip-tables=wp_options --export`
     Then STDOUT should not contain:
       """
       INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES
