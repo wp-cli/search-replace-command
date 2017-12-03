@@ -10,7 +10,7 @@ Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contr
 ## Using
 
 ~~~
-wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--regex-delimiter=<regex-delimiter>] [--format=<format>] [--report] [--report-changed-only] [--log[=<file>]] [--before_context=<num>] [--after_context=<num>]
+wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-tables=<tables>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--regex-delimiter=<regex-delimiter>] [--format=<format>] [--report] [--report-changed-only] [--log[=<file>]] [--before_context=<num>] [--after_context=<num>]
 ~~~
 
 Searches through all rows in a selection of tables and replaces
@@ -60,6 +60,10 @@ change primary key values.
 		Define number of rows in single INSERT statement when doing SQL export.
 		You might want to change this depending on your database configuration
 		(e.g. if you need to do fewer queries). Default: 50
+
+	[--skip-tables=<tables>]
+		Do not perform the replacement on specific tables. Use commas to
+		specify multiple tables.
 
 	[--skip-columns=<columns>]
 		Do not perform the replacement on specific columns. Use commas to
@@ -135,9 +139,9 @@ change primary key values.
     # Bash script: Search/replace production to development url (multisite compatible)
     #!/bin/bash
     if $(wp --url=http://example.com core is-installed --network); then
-        wp search-replace --url=http://example.com 'http://example.com' 'http://example.dev' --recurse-objects --network --skip-columns=guid
+        wp search-replace --url=http://example.com 'http://example.com' 'http://example.dev' --recurse-objects --network --skip-columns=guid --skip-tables=wp_users
     else
-        wp search-replace 'http://example.com' 'http://example.dev' --recurse-objects --skip-columns=guid
+        wp search-replace 'http://example.com' 'http://example.dev' --recurse-objects --skip-columns=guid --skip-tables=wp_users
     fi
 
 ## Installing
