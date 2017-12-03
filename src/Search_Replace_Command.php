@@ -275,6 +275,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		// Get table names based on leftover $args or supplied $assoc_args
 		$tables = \WP_CLI\Utils\wp_get_table_names( $args, $assoc_args );
+
+		// Removes from $tables tables provided by skip-tables argument
+		$tables = array_diff( $tables, $this->skip_tables );
+
 		foreach ( $tables as $table ) {
 
 			if ( in_array( $table, $this->skip_tables ) ) {
