@@ -24,14 +24,14 @@ Feature: Search / replace with file export
     Then STDOUT should not contain:
       """
       INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES
-('1', 'siteurl', 'http://example.com', 'yes'),
+    ('1', 'siteurl', 'http://example.com', 'yes'),
       """
 
     When I run `wp search-replace example.com example.net --skip-columns=option_value --export`
     Then STDOUT should contain:
       """
       INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES
-('1', 'siteurl', 'http://example.com', 'yes'),
+    ('1', 'siteurl', 'http://example.com', 'yes'),
       """
 
     When I run `wp search-replace example.com example.net --skip-columns=option_value --export --export_insert_size=1`
