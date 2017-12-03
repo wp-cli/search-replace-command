@@ -20,10 +20,17 @@ Feature: Search / replace with file export
       http://example.com
       """
 
+    When I run `wp search-replace example.com example.net --skip-tables=wp_options --export
+    Then STDOUT should not contain:
+      """
+      INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES
+  ('1', 'siteurl', 'http://example.com', 'yes'),
+      """
+
     When I run `wp search-replace example.com example.net --skip-columns=option_value --export`
     Then STDOUT should contain:
       """
-      INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES 
+      INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES
     ('1', 'siteurl', 'http://example.com', 'yes'),
       """
 
@@ -31,9 +38,9 @@ Feature: Search / replace with file export
     Then STDOUT should contain:
       """
       ('1', 'siteurl', 'http://example.com', 'yes');
-    INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES 
+    INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES
       """
-          
+
     When I run `wp search-replace foo bar --export | tail -n 1`
     Then STDOUT should not contain:
       """
