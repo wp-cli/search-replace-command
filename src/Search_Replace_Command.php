@@ -9,6 +9,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $regex;
 	private $regex_flags;
 	private $regex_delimiter;
+	private $skip_tables;
 	private $skip_columns;
 	private $include_columns;
 	private $format;
@@ -73,6 +74,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Define number of rows in single INSERT statement when doing SQL export.
 	 * You might want to change this depending on your database configuration
 	 * (e.g. if you need to do fewer queries). Default: 50
+	 *
+	 * [--skip-tables=<tables>]
+	 * : Do not perform the replacement on specific tables. Use commas to
+	 * specify multiple tables.
 	 *
 	 * [--skip-columns=<columns>]
 	 * : Do not perform the replacement on specific columns. Use commas to
@@ -148,9 +153,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     # Bash script: Search/replace production to development url (multisite compatible)
 	 *     #!/bin/bash
 	 *     if $(wp --url=http://example.com core is-installed --network); then
-	 *         wp search-replace --url=http://example.com 'http://example.com' 'http://example.dev' --recurse-objects --network --skip-columns=guid
+	 *         wp search-replace --url=http://example.com 'http://example.com' 'http://example.dev' --recurse-objects --network --skip-columns=guid --skip-tables=wp_users
 	 *     else
-	 *         wp search-replace 'http://example.com' 'http://example.dev' --recurse-objects --skip-columns=guid
+	 *         wp search-replace 'http://example.com' 'http://example.dev' --recurse-objects --skip-columns=guid --skip-tables=wp_users
 	 *     fi
 	 */
 	public function __invoke( $args, $assoc_args ) {
@@ -195,6 +200,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		$this->skip_columns = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
+		$this->skip_tables = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-tables' ) );
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 
 		if ( $old === $new && ! $this->regex ) {
@@ -269,7 +275,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		// Get table names based on leftover $args or supplied $assoc_args
 		$tables = \WP_CLI\Utils\wp_get_table_names( $args, $assoc_args );
+
+		// Removes from $tables tables provided by skip-tables argument
+		$tables = array_diff( $tables, $this->skip_tables );
+
 		foreach ( $tables as $table ) {
+
+			if ( in_array( $table, $this->skip_tables ) ) {
+				continue;
+			}
 
 			$table_sql = self::esc_sql_ident( $table );
 
