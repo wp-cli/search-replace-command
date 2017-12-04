@@ -9,6 +9,12 @@ Feature: Do global search/replace
       guid
       """
 
+    When I run `wp search-replace foo bar --skip-tables=wp_posts`
+    Then STDOUT should not contain:
+      """
+      wp_posts
+      """
+
     When I run `wp search-replace foo bar --skip-columns=guid`
     Then STDOUT should not contain:
       """
