@@ -9,6 +9,12 @@ Feature: Do global search/replace
       guid
       """
 
+    When I run `wp search-replace foo bar --skip-tables=wp_posts`
+    Then STDOUT should not contain:
+      """
+      wp_posts
+      """
+
     When I run `wp search-replace foo bar --skip-columns=guid`
     Then STDOUT should not contain:
       """
@@ -657,7 +663,7 @@ Feature: Do global search/replace
     When I run `wp post create --post_title='Title_baz__baz_' --post_content='Content_baz_12345678901234567890_baz_12345678901234567890' --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp search-replace '_baz_' '_' --dry-run --log  --before_context=10 --after_context=10`
+    When I run `wp search-replace '_baz_' '_' wp_posts --dry-run --log  --before_context=10 --after_context=10`
     Then STDOUT should contain:
       """
       Success: 2 replacements to be made.
@@ -681,7 +687,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `wp search-replace '_baz_' '' --dry-run --log=replace.log`
+    When I run `wp search-replace '_baz_' '' wp_posts --dry-run --log=replace.log`
     Then STDOUT should contain:
       """
       Success: 2 replacements to be made.
@@ -705,7 +711,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     # kana with diacritic and decomposed "a" + umlaut.
-    When I run `wp search-replace '_baz_' '_バäz_' --log=- --before_context=10 --after_context=20`
+    When I run `wp search-replace '_baz_' '_バäz_' wp_posts --log=- --before_context=10 --after_context=20`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
@@ -719,7 +725,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     # Testing UTF-8 context
-    When I run `wp search-replace 'z_' 'zzzz_' --log --before_context=2 --after_context=1`
+    When I run `wp search-replace 'z_' 'zzzz_' wp_posts --log --before_context=2 --after_context=1`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
@@ -810,7 +816,7 @@ Feature: Do global search/replace
     When I run `wp post create --post_title='Title_baz__boz_' --post_content='Content_baz_1234567890_bez_1234567890_biz_1234567890_boz_1234567890_buz_' --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp search-replace '_b[aeiou]z_' '_bz_' --regex --dry-run --log  --before_context=11 --after_context=11`
+    When I run `wp search-replace '_b[aeiou]z_' '_bz_' wp_posts --regex --dry-run --log  --before_context=11 --after_context=11`
     Then STDOUT should contain:
       """
       Success: 2 replacements to be made.
@@ -834,7 +840,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' --regex --log  --before_context=11 --after_context=11`
+    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' wp_posts --regex --log  --before_context=11 --after_context=11`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
