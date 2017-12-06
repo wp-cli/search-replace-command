@@ -1,7 +1,7 @@
 wp-cli/search-replace-command
 =============================
 
-Search/replace strings in the database.
+Searches/replaces strings in the database.
 
 [![Build Status](https://travis-ci.org/wp-cli/search-replace-command.svg?branch=master)](https://travis-ci.org/wp-cli/search-replace-command)
 

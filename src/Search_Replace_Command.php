@@ -25,7 +25,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $log_run_data = array();
 
 	/**
-	 * Search/replace strings in the database.
+	 * Searches/replaces strings in the database.
 	 *
 	 * Searches through all rows in a selection of tables and replaces
 	 * appearances of the first string with the second string.
@@ -826,7 +826,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	}
 
 	/*
-	 * Output the log strings.
+	 * Outputs the log strings.
 	 *
 	 * @param string $col Column being processed.
 	 * @param array $keys Associative array (or object) of primary key names and their values for the row being processed.
