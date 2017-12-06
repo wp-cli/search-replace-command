@@ -1,6 +1,6 @@
 {
     "name": "wp-cli/search-replace-command",
-    "description": "Search/replace strings in the database.",
+    "description": "Searches/replaces strings in the database.",
     "type": "wp-cli-package",
     "homepage": "https://github.com/wp-cli/search-replace-command",
     "support": {
