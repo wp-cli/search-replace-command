@@ -291,6 +291,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// since we'll be updating one row at a time,
 			// we need a primary key to identify the row
 			if ( empty( $primary_keys ) ) {
+
+				// wasn't updated, so skip to the next table
+				if ( $this->report_changed_only ) {
+					continue;
+				}
 				if ( $this->report ) {
 					$report[] = array( $table, '', 'skipped', '' );
 				} else {
