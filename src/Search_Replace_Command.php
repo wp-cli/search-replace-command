@@ -309,9 +309,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 				if ( $this->report ) {
 					$report[] = array( $table, '', 'skipped', '' );
-				} else {
-					WP_CLI::warning( $all_columns ? "No primary keys for table '$table'." : "No such table '$table'." );
+					continue;
 				}
+				// Otherwise, show message
+				WP_CLI::warning( $all_columns ? "No primary keys for table '$table'." : "No such table '$table'." );
 				continue;
 			}
 
