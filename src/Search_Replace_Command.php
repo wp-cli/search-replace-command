@@ -369,7 +369,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return;
 		}
 
-		if ( $this->report ) {
+		if ( $this->report && ! empty( $report ) ) {
 			$table = new \cli\Table();
 			$table->setHeaders( array( 'Table', 'Column', 'Replacements', 'Type' ) );
 			$table->setRows( $report );
