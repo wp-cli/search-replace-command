@@ -473,6 +473,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
+  @suppress_report__only_changes
   Scenario: Suppress report or only report changes
     Given a WP install
 
@@ -570,6 +571,18 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
+    When I run `wp search-replace nobaz1 baz6 --report-changed-only`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+    And STDOUT should not contain:
+      """
+      Table	Column	Replacements	Type
+      """
+    And STDERR should be empty
+
+  @no_table__no_primary_key
   Scenario: Deal with non-existent table and table with no primary keys
     Given a WP install
 
@@ -607,6 +620,18 @@ Feature: Do global search/replace
     And STDOUT should end with a table containing rows:
     | Table  | Column | Replacements | Type |
     | no_key |        | skipped      |      |
+    And STDERR should be empty
+
+    And I run `wp search-replace foo bar no_key --report-changed-only`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+    And STDOUT should not contain:
+      """
+      | Table  | Column | Replacements | Type |
+      | no_key |        | skipped      |      |
+      """
     And STDERR should be empty
 
     When I try `wp search-replace foo bar no_key --no-report`
