@@ -302,7 +302,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// since we'll be updating one row at a time,
 			// we need a primary key to identify the row
 			if ( empty( $primary_keys ) ) {
-				if ( $this->report && ! $this->report_changed_only ) {
+
+				// wasn't updated, so skip to the next table
+				if ( $this->report_changed_only ) {
+					continue;
+				}
+				if ( $this->report ) {
 					$report[] = array( $table, '', 'skipped', '' );
 				} else {
 					WP_CLI::warning( $all_columns ? "No primary keys for table '$table'." : "No such table '$table'." );
