@@ -492,7 +492,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				if ( strlen( $where_sql ) ) {
 					$where_sql .= ' AND ';
 				}
-				$where_sql .= self::esc_sql_ident( $k ) . ' = ' . esc_sql( $v );
+				$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
 			}
 			$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
 			if ( '' === $col_value )
@@ -647,6 +647,67 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return $backtick( $idents );
 		}
 		return array_map( $backtick, $idents );
+	}
+
+	/**
+	 * Puts MySQL string values in single quotes, to avoid them being interpreted as column names.
+	 *
+	 * @param string|array $values A single value or an array of values.
+	 * @return string|array A quoted string if given a string, or an array of quoted strings if given an array of strings.
+	 */
+	private static function esc_sql_value( $values ) {
+		if ( is_array( $values ) ) {
+			return array_map( array( __NAMESPACE__, 'quote_sql_value' ), $values );
+		}
+
+		return self::quote_sql_value( $values );
+	}
+
+	/**
+	 * Do a best-guess effort to find out whether we should quote a value.
+	 *
+	 * @param $value
+	 *
+	 * @return string
+	 */
+	private static function quote_sql_value( $value ) {
+		if ( self::is_reserved_sql_keyword( $value )
+		     || self::is_sql_function_call( $value ) ) {
+			return esc_sql( $value );
+		}
+
+		// Put any string values between single quotes.
+		return "'" . str_replace( "'", "''", esc_sql( $value ) ) . "'";
+	}
+
+	/**
+	 * Check whether a given string is a reserved SQL keyword.
+	 *
+	 * @param string $value Value to check.
+	 *
+	 * @return bool Whether the provided value is a reserved SQL keyword.
+	 */
+	private static function is_reserved_sql_keyword( $value ) {
+		static $reserved_keywords = null;
+		if ( null === $reserved_keywords ) {
+			// We're flipping the array to be able to do a faster hash-based
+			// lookup (array_key_exists) instead of a traversal (in_array).
+			$array = include dirname( __DIR__ ) . '/includes/reserved_sql_keywords.php';
+			$reserved_keywords = array_flip( $array );
+		}
+
+		return array_key_exists( $value, $reserved_keywords );
+	}
+
+	/**
+	 * Check whether a given string is an SQL function call.
+	 *
+	 * @param string $value Value to check.
+	 *
+	 * @return bool Whether the provided value is an SQL function call.
+	 */
+	private static function is_sql_function_call( $value ) {
+		return 1 === preg_match( '/[a-zA-Z]*\(.*\)$/', $value );
 	}
 
 	/**
