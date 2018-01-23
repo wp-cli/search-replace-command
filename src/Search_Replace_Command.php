@@ -696,7 +696,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$reserved_keywords = array_flip( $array );
 		}
 
-		return array_key_exists( $value, $reserved_keywords );
+		return array_key_exists( strtoupper( $value ), $reserved_keywords );
 	}
 
 	/**
