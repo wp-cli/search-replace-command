@@ -1009,6 +1009,10 @@ Feature: Do global search/replace
         PRIMARY KEY (`name`)
       ) ENGINE=InnoDB;
       INSERT INTO `wp_123_test` VALUES ('test_val','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('123.','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('quote\'quote','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('0','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
       """
 
     When I run `wp db query "SOURCE test_db.sql;"`
