@@ -977,3 +977,33 @@ Feature: Do global search/replace
       > Just another WP site
       """
     And STDERR should be empty
+
+  # Regression test for https://github.com/wp-cli/search-replace-command/issues/58
+  Scenario: The parameters --regex and --all-tables-with-prefix produce valid SQL
+    Given a WP install
+    And a test_db.sql file:
+      """
+      DROP TABLE IF EXISTS `wp_123_test`;
+      CREATE TABLE `wp_123_test` (
+        `name` varchar(50),
+        `value` varchar(5000),
+        `created_at` datetime NOT NULL,
+        `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`name`)
+      ) ENGINE=InnoDB;
+      INSERT INTO `wp_123_test` VALUES ('test_val','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('123.','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('quote\'quote','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('0','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      """
+
+    When I run `wp db query "SOURCE test_db.sql;"`
+    Then STDERR should be empty
+
+    When I run `wp search-replace --dry-run --regex 'mytestdomain.com\/' 'mytestdomain2.com/' --all-tables-with-prefix --skip-columns=guid,domain`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      Success: 0 replacements to be made.
+      """

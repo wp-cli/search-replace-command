@@ -492,7 +492,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				if ( strlen( $where_sql ) ) {
 					$where_sql .= ' AND ';
 				}
-				$where_sql .= self::esc_sql_ident( $k ) . ' = ' . esc_sql( $v );
+				$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
 			}
 			$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
 			if ( '' === $col_value )
@@ -647,6 +647,30 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return $backtick( $idents );
 		}
 		return array_map( $backtick, $idents );
+	}
+
+	/**
+	 * Puts MySQL string values in single quotes, to avoid them being interpreted as column names.
+	 *
+	 * @param string|array $values A single value or an array of values.
+	 * @return string|array A quoted string if given a string, or an array of quoted strings if given an array of strings.
+	 */
+	private static function esc_sql_value( $values ) {
+		$quote = function ( $v ) {
+			// Don't quote integer values to avoid MySQL's implicit type conversion.
+			if ( (string)(int) $v === (string) $v ) {
+				return esc_sql( $v );
+			}
+
+			// Put any string values between single quotes.
+			return "'" . esc_sql( $v ) . "'";
+		};
+
+		if ( is_array( $values ) ) {
+			return array_map( $quote, $values );
+		}
+
+		return $quote( $values );
 	}
 
 	/**
