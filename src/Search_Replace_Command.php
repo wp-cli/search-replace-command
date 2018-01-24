@@ -657,7 +657,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 */
 	private static function esc_sql_value( $values ) {
 		$quote = function ( $v ) {
-			// Don't quote numeric values to MySQL's implicit type conversion.
+			// Don't quote numeric values to avoid MySQL's implicit type conversion.
 			if ( is_numeric( $v ) ) {
 				return esc_sql( $v );
 			}
