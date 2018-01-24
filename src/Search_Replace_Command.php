@@ -663,7 +663,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 
 			// Put any string values between single quotes.
-			return "'" . str_replace( "'", "''", esc_sql( $v ) ) . "'";
+			return "'" . esc_sql( $v ) . "'";
 		};
 
 		if ( is_array( $values ) ) {
