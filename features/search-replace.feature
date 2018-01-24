@@ -271,7 +271,7 @@ Feature: Do global search/replace
     And I run `wp db query "INSERT INTO wp_multicol VALUES (1, 'foo',  'bar')"`
     And I run `wp db query "INSERT INTO wp_multicol VALUES (2, 'bar',  'foo')"`
 
-    When I run `wp search-replace bar replaced wp_multicol`
+    When I run `wp search-replace bar replaced wp_multicol --all-tables`
     Then STDOUT should be a table containing rows:
       | Table       | Column | Replacements | Type |
       | wp_multicol | name   | 1            | SQL  |
@@ -458,7 +458,7 @@ Feature: Do global search/replace
     When I run `wp db query "SOURCE esc_sql_ident.sql;"`
     Then STDERR should be empty
 
-    When I run `wp search-replace 'v"vvvv_v' 'w"wwww_w' TABLE --format=count`
+    When I run `wp search-replace 'v"vvvv_v' 'w"wwww_w' TABLE --format=count --all-tables`
     Then STDOUT should be:
       """
       6
@@ -466,7 +466,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     # Regex uses wpdb::update() which can't handle backticks in field names so avoid `back``tick` column.
-    When I run `wp search-replace 'w"wwww_w' 'v"vvvv_v' TABLE --regex --include-columns='VALUES,single'\''double"quote' --format=count`
+    When I run `wp search-replace 'w"wwww_w' 'v"vvvv_v' TABLE --regex --include-columns='VALUES,single'\''double"quote' --format=count --all-tables`
     Then STDOUT should be:
       """
       4
@@ -586,33 +586,16 @@ Feature: Do global search/replace
   Scenario: Deal with non-existent table and table with no primary keys
     Given a WP install
 
-    When I run `wp search-replace foo bar no_such_table`
-    Then STDOUT should contain:
-      """
-      Success: Made 0 replacements.
-      """
-    And STDOUT should end with a table containing rows:
-    | Table         | Column | Replacements | Type |
-    | no_such_table |        | skipped      |      |
-    And STDERR should be empty
-
-    When I try `wp search-replace foo bar no_such_table --no-report`
-    Then STDOUT should contain:
-      """
-      Success: Made 0 replacements.
-      """
-    And STDOUT should not contain:
-      """
-      Table	Column	Replacements	Type
-      """
+    When I try `wp search-replace foo bar no_such_table --all-tables`
+    Then STDOUT should be empty
     And STDERR should be:
       """
-      Warning: No such table 'no_such_table'.
+      Error: Couldn't find any tables matching: no_such_table
       """
-    And the return code should be 0
+    And the return code should be 1
 
     When I run `wp db query "CREATE TABLE no_key ( awesome_stuff TEXT );"`
-    And I run `wp search-replace foo bar no_key`
+    And I run `wp search-replace foo bar no_key --all-tables`
     Then STDOUT should contain:
       """
       Success: Made 0 replacements.
@@ -622,7 +605,7 @@ Feature: Do global search/replace
     | no_key |        | skipped      |      |
     And STDERR should be empty
 
-    And I run `wp search-replace foo bar no_key --report-changed-only`
+    And I run `wp search-replace foo bar no_key --report-changed-only --all-tables`
     Then STDOUT should contain:
       """
       Success: Made 0 replacements.
@@ -634,7 +617,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I try `wp search-replace foo bar no_key --no-report`
+    When I try `wp search-replace foo bar no_key --no-report --all-tables`
     Then STDOUT should contain:
       """
       Success: Made 0 replacements.
