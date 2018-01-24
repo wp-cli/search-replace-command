@@ -213,7 +213,7 @@ Feature: Search / replace with file export
     When I run `wp db query "SOURCE esc_sql_ident.sql;"`
     Then STDERR should be empty
 
-    When I run `wp search-replace 'v"vvvv_v' 'w"wwww_w' TABLE --export`
+    When I run `wp search-replace 'v"vvvv_v' 'w"wwww_w' TABLE --export --all-tables`
     Then STDOUT should contain:
       """
       INSERT INTO `TABLE` (`KEY`, `VALUES`, `single'double"quote`) VALUES
@@ -228,7 +228,7 @@ Feature: Search / replace with file export
       """
     And STDERR should be empty
 
-    When I run `wp search-replace 'v"vvvv_v2' 'w"wwww_w2' TABLE --export --regex`
+    When I run `wp search-replace 'v"vvvv_v2' 'w"wwww_w2' TABLE --export --regex --all-tables`
     Then STDOUT should contain:
       """
       INSERT INTO `TABLE` (`KEY`, `VALUES`, `single'double"quote`) VALUES
