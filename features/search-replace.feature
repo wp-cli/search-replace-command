@@ -177,6 +177,16 @@ Feature: Do global search/replace
       """
       world, Hello
       """
+    When I run `wp search-replace 'o' 'O' --regex --regex-limit=1`
+    Then STDOUT should contain:
+      """
+      wp_posts
+      """
+    When I run `wp post list --fields=post_title`
+    Then STDOUT should contain:
+      """
+      wOrld, Hello
+      """
 
   Scenario: Regex search/replace with a incorrect `--regex-flags`
     Given a WP install
@@ -190,6 +200,16 @@ Feature: Do global search/replace
       kppr
       """
     And the return code should be 1
+    When I run `wp search-replace 'o' 'O' --regex --regex-limit=1`
+    Then STDOUT should contain:
+      """
+      wp_posts
+      """
+    When I run `wp post list --fields=post_title`
+    Then STDOUT should contain:
+      """
+      wOrld, Hello
+      """
 
   Scenario: Search and replace within theme mods
     Given a WP install
@@ -848,7 +868,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' wp_posts --regex --log  --before_context=11 --after_context=11`
+    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' wp_posts --regex --log --before_context=11 --after_context=11`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
