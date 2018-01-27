@@ -900,6 +900,17 @@ Feature: Do global search/replace
       Content_ab\1z__baz_1234567890_eb\1z__bez_1234567890_ib\1z__biz_1234567890_ob\1z__boz_1234567890_ub\1z__buz_
       """
 
+    When I run `wp search-replace '_{2}' '-' wp_posts --regex --regex-limit=2 --log --before_context=11 --after_context=11`
+    Then STDOUT should contain:
+      """
+      Title_ab\1z-baz-ob\1z__boz_
+      """
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title_ab\1z-baz-ob\1z__boz_
+      """
+
   Scenario: Logging with prefixes and custom colors
     Given a WP install
 
