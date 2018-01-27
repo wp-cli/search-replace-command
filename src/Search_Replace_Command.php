@@ -5,6 +5,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $dry_run;
 	private $export_handle = false;
 	private $export_insert_size;
+	private $regex_limit;
 	private $recurse_objects;
 	private $regex;
 	private $regex_flags;
@@ -108,6 +109,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * [--regex-delimiter=<regex-delimiter>]
 	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string. The default value is the result of `chr(1)`.
 	 *
+	 * [--regex-limit=<regex-limit>]
+	 * : The maximum possible replacements for each pattern in each subject string. Defaults to `-1` (no limit).
+	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
 	 * ---
@@ -165,10 +169,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$total           = 0;
 		$report          = array();
 		$this->dry_run         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run' );
-		$php_only        = \WP_CLI\Utils\get_flag_value( $assoc_args, 'precise' );
+		$php_only              = \WP_CLI\Utils\get_flag_value( $assoc_args, 'precise' );
 		$this->recurse_objects = \WP_CLI\Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
+		$this->regex_limit    = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit', -1 );
 
 		if ( ( $this->regex = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false ) ) ) {
 			$this->regex_flags = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags', false );
@@ -801,7 +806,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$diff += strlen( $new ) - strlen( $old_matches[0][ $i ][0] );
 			$i++;
 			return $new;
-		}, $old_data );
+		}, $old_data, $this->regex_limit );
 
 		$old_bits = $new_bits = array();
 		$append_next = false;
