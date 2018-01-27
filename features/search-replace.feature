@@ -208,7 +208,7 @@ Feature: Do global search/replace
     When I run `wp post list --fields=post_title`
     Then STDOUT should contain:
       """
-      wOrld, Hello
+      HellO world!
       """
 
   Scenario: Search and replace within theme mods
@@ -691,7 +691,7 @@ Feature: Do global search/replace
     When I run `wp post create --post_title='Title_baz__baz_' --post_content='Content_baz_12345678901234567890_baz_12345678901234567890' --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp search-replace '_baz_' '_' wp_posts --dry-run --log  --before_context=10 --after_context=10`
+    When I run `wp search-replace '_baz_' '_' wp_posts --dry-run --log --before_context=10 --after_context=10`
     Then STDOUT should contain:
       """
       Success: 2 replacements to be made.
