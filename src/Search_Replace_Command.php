@@ -173,6 +173,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex_limit    = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit', -1 );
+		if ( 0 === intval( $this->regex_limit ) ) {
+			WP_CLI::error( '`--regex-limit` expects integer.' );
+		}
 
 		if ( ( $this->regex = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false ) ) ) {
 			$this->regex_flags = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags', false );
