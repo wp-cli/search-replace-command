@@ -105,6 +105,7 @@ class SearchReplacer {
 					$search_regex .= $this->from;
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
+					var_dump( $this->regex_limit );
 					$data = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
 				} else {
 					$data = str_replace( $this->from, $this->to, $data );
