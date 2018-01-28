@@ -658,7 +658,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private static function esc_sql_value( $values ) {
 		$quote = function ( $v ) {
 			// Don't quote integer values to avoid MySQL's implicit type conversion.
-			if ( (string)(int) $v === (string) $v ) {
+			if ( preg_match( '/^[+-]?[0-9]{1,20}$/', $v ) ) { // MySQL BIGINT UNSIGNED max 18446744073709551615 (20 digits).
 				return esc_sql( $v );
 			}
 
