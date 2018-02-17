@@ -5,11 +5,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $dry_run;
 	private $export_handle = false;
 	private $export_insert_size;
-	private $regex_limit;
 	private $recurse_objects;
 	private $regex;
 	private $regex_flags;
 	private $regex_delimiter;
+	private $regex_limit = 1;
 	private $skip_tables;
 	private $skip_columns;
 	private $include_columns;
