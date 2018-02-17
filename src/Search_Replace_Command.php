@@ -109,7 +109,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string. The default value is the result of `chr(1)`.
 	 *
 	 * [--regex-limit=<regex-limit>]
-	 * : The maximum possible replacements for each pattern in each subject string. Defaults to `-1` (no limit).
+	 * : The maximum possible replacements for the regex in each unserialized data bit per row. Defaults to `-1` (no limit).
 	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
