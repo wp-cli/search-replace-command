@@ -816,9 +816,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$append_next = false;
 		$last_old_offset = $last_new_offset = 0;
 		for ( $i = 0; $i < $match_cnt; $i++ ) {
-			if ( empty( $old_matches[0][ $i ] ) || empty( $new_matches[0][ $i ] ) ) {
-				continue;
-			}
 			$old_match = $old_matches[0][ $i ][0];
 			$old_offset = $old_matches[0][ $i ][1];
 			$new_match = $new_matches[0][ $i ][0];
@@ -842,12 +839,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$new_after = \cli\safe_substr( substr( $new_data, $new_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
 				// To lessen context duplication in output, shorten the after context if it overlaps with the next match.
 				if ( $i + 1 < $match_cnt && $old_end_offset + strlen( $old_after ) > $old_matches[0][ $i + 1 ][1] ) {
-					if ( ! empty( $old_matches[0][ $i + 1 ] ) && ! empty( $new_matches[0][ $i + 1 ] ) ) {
-						$old_after       = substr( $old_after, 0, $old_matches[0][ $i + 1 ][1] - $old_end_offset );
-						$new_after       = substr( $new_after, 0, $new_matches[0][ $i + 1 ][1] - $new_end_offset );
-						$after_shortened = true;
-						// On the next iteration, will append with no before context.
-					}
+					$old_after       = substr( $old_after, 0, $old_matches[0][ $i + 1 ][1] - $old_end_offset );
+					$new_after       = substr( $new_after, 0, $new_matches[0][ $i + 1 ][1] - $new_end_offset );
+					$after_shortened = true;
+					// On the next iteration, will append with no before context.
 				}
 			}
 
