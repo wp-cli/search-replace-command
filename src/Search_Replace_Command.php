@@ -172,10 +172,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->recurse_objects = \WP_CLI\Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
-		$this->regex_limit    = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit', -1 );
-		if ( 0 === intval( $this->regex_limit ) ) {
-			WP_CLI::error( '`--regex-limit` expects integer.' );
-		}
 
 		if ( ( $this->regex = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false ) ) ) {
 			$this->regex_flags = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags', false );
@@ -203,6 +199,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$msg = "The regex '$search_regex' fails.";
 				}
 				WP_CLI::error( $msg );
+			}
+			if ( ( $regex_limit = (int) \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit', - 1 ) ) > - 1 ) {
+				if ( ! preg_match( '/^[0-9]+$/', $regex_limit ) ) {
+					WP_CLI::error( '`--regex-limit` expects a positive integer.' );
+				}
+				$this->regex_limit = $regex_limit;
 			}
 		}
 
