@@ -810,12 +810,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$diff += strlen( $new ) - strlen( $old_matches[0][ $i ][0] );
 			$i++;
 			return $new;
-		}, $old_data, $this->regex_limit );
+		}, $old_data, $this->regex_limit, $match_cnt );
 
 		$old_bits = $new_bits = array();
 		$append_next = false;
 		$last_old_offset = $last_new_offset = 0;
-		$match_cnt = count( $old_matches[0] );
 		for ( $i = 0; $i < $match_cnt; $i++ ) {
 			if ( empty( $old_matches[0][ $i ] ) || empty( $new_matches[0][ $i ] ) ) {
 				continue;
