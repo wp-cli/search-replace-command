@@ -392,9 +392,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$success_message = 1 === $total ? "Made 1 replacement." : "Made $total replacements.";
 				if ( $total && 'Default' !== WP_CLI\Utils\wp_get_cache_type() ) {
 					$success_message .= ' Please remember to flush your persistent object cache with `wp cache flush`.';
-					if ( is_multisite() ) {
-						$success_message .= ' If you see a "Site not found" error after replacing a domain, try flushing cache against the old domain (which may be the cached lookup value).';
-					}
 				}
 			}
 			WP_CLI::success( $success_message );
@@ -667,7 +664,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private static function esc_sql_value( $values ) {
 		$quote = function ( $v ) {
 			// Don't quote integer values to avoid MySQL's implicit type conversion.
-			if ( (string)(int) $v === (string) $v ) {
+			if ( preg_match( '/^[+-]?[0-9]{1,20}$/', $v ) ) { // MySQL BIGINT UNSIGNED max 18446744073709551615 (20 digits).
 				return esc_sql( $v );
 			}
 

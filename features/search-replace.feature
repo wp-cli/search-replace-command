@@ -1014,7 +1014,6 @@ Feature: Do global search/replace
     Given a WP install
     And a test_db.sql file:
       """
-      DROP TABLE IF EXISTS `wp_123_test`;
       CREATE TABLE `wp_123_test` (
         `name` varchar(50),
         `value` varchar(5000),
@@ -1022,19 +1021,43 @@ Feature: Do global search/replace
         `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`name`)
       ) ENGINE=InnoDB;
-      INSERT INTO `wp_123_test` VALUES ('test_val','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
-      INSERT INTO `wp_123_test` VALUES ('123.','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
-      INSERT INTO `wp_123_test` VALUES ('quote\'quote','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
-      INSERT INTO `wp_123_test` VALUES ('0','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
-      INSERT INTO `wp_123_test` VALUES ('','off','2016-11-15 14:41:33','2016-11-15 21:41:33');
-      """
+      INSERT INTO `wp_123_test` VALUES ('test_val','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('123.','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('quote\'quote','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('0','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('18446744073709551616','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('-18446744073709551615','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
+      INSERT INTO `wp_123_test` VALUES ('123456789012345678801234567890','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
 
-    When I run `wp db query "SOURCE test_db.sql;"`
-    Then STDERR should be empty
+      CREATE TABLE `wp_123_test2` (`bigint_unsigned_key` BIGINT UNSIGNED NOT NULL, `value` VARCHAR(255), PRIMARY KEY (`bigint_unsigned_key`) );
+      INSERT INTO `wp_123_test2` VALUES ('18446744073709551615','wp_123_test2_value_X');
+
+      CREATE TABLE `wp_123_test3` (`bigint_signed_key` BIGINT SIGNED NOT NULL, `value` VARCHAR(255), PRIMARY KEY (`bigint_signed_key`) );
+      INSERT INTO `wp_123_test3` VALUES ('-9223372036854775808','wp_123_test3_value_X');
+      """
+    And I run `wp db query "SOURCE test_db.sql;"`
 
     When I run `wp search-replace --dry-run --regex 'mytestdomain.com\/' 'mytestdomain2.com/' --all-tables-with-prefix --skip-columns=guid,domain`
-    Then STDERR should be empty
-    And STDOUT should contain:
+    Then STDOUT should contain:
       """
       Success: 0 replacements to be made.
+      """
+
+    When I run `wp search-replace --dry-run --regex 'wp_123_test_value_X' 'wp_123_test_value_Y' --all-tables-with-prefix`
+    Then STDOUT should contain:
+      """
+      Success: 8 replacements to be made.
+      """
+
+    When I run `wp search-replace --dry-run --regex 'wp_123_test2_value_X' 'wp_123_test2_value_Y' --all-tables-with-prefix`
+    Then STDOUT should contain:
+      """
+      Success: 1 replacement to be made.
+      """
+
+    When I run `wp search-replace --dry-run --regex 'wp_123_test3_value_X' 'wp_123_test3_value_Y' --all-tables-with-prefix`
+    Then STDOUT should contain:
+      """
+      Success: 1 replacement to be made.
       """
