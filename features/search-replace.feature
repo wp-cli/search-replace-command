@@ -177,16 +177,6 @@ Feature: Do global search/replace
       """
       world, Hello
       """
-    When I run `wp search-replace 'o' 'O' --regex --regex-limit=1`
-    Then STDOUT should contain:
-      """
-      wp_posts
-      """
-    When I run `wp post list --fields=post_title`
-    Then STDOUT should contain:
-      """
-      wOrld, Hello
-      """
 
   Scenario: Regex search/replace with a incorrect `--regex-flags`
     Given a WP install
@@ -200,16 +190,6 @@ Feature: Do global search/replace
       kppr
       """
     And the return code should be 1
-    When I run `wp search-replace 'o' 'O' --regex --regex-limit=1`
-    Then STDOUT should contain:
-      """
-      wp_posts
-      """
-    When I run `wp post list --fields=post_title`
-    Then STDOUT should contain:
-      """
-      HellO world!
-      """
 
   Scenario: Search and replace within theme mods
     Given a WP install
@@ -900,17 +880,6 @@ Feature: Do global search/replace
       Content_ab\1z__baz_1234567890_eb\1z__bez_1234567890_ib\1z__biz_1234567890_ob\1z__boz_1234567890_ub\1z__buz_
       """
 
-    When I run `wp search-replace '_{2}' '-' wp_posts --regex --regex-limit=2 --log --before_context=11 --after_context=11`
-    Then STDOUT should contain:
-      """
-      Title_ab\1z-baz-ob\1z__boz_
-      """
-    When I run `wp post get {POST_ID} --field=title`
-    Then STDOUT should be:
-      """
-      Title_ab\1z-baz-ob\1z__boz_
-      """
-
   Scenario: Logging with prefixes and custom colors
     Given a WP install
 
@@ -1061,3 +1030,24 @@ Feature: Do global search/replace
       """
       Success: 1 replacement to be made.
       """
+
+  Scenario: Regex search/replace with `--regex-limit=1` option
+    Given a WP install
+    And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
+
+    When I run `wp search-replace --regex "ap{2}le" "orange" --regex-limit=1 --log`
+    Then STDOUT should contain:
+    """
+    I have a pen, I have an orange. Pen, pine-apple, apple-pen.
+    """
+
+
+  Scenario: Regex search/replace with `--regex-limit=2` option
+    Given a WP install
+    And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
+
+    When I run `wp search-replace --regex "ap{2}le" "orange" --regex-limit=2 --log`
+    Then STDOUT should contain:
+    """
+    I have a pen, I have an orange. Pen, pine-orange, apple-pen.
+    """
