@@ -5,11 +5,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $dry_run;
 	private $export_handle = false;
 	private $export_insert_size;
-	private $regex_limit;
 	private $recurse_objects;
 	private $regex;
 	private $regex_flags;
 	private $regex_delimiter;
+	private $regex_limit = 1;
 	private $skip_tables;
 	private $skip_columns;
 	private $include_columns;
@@ -109,7 +109,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string. The default value is the result of `chr(1)`.
 	 *
 	 * [--regex-limit=<regex-limit>]
-	 * : The maximum possible replacements for each pattern in each subject string. Defaults to `-1` (no limit).
+	 * : The maximum possible replacements for the regex in each unserialized data bit per row. Defaults to `-1` (no limit).
 	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
@@ -172,10 +172,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->recurse_objects = \WP_CLI\Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
 		$this->verbose         =  \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
-		$this->regex_limit    = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit', -1 );
-		if ( 0 === intval( $this->regex_limit ) ) {
-			WP_CLI::error( '`--regex-limit` expects integer.' );
-		}
 
 		if ( ( $this->regex = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false ) ) ) {
 			$this->regex_flags = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags', false );
@@ -203,6 +199,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$msg = "The regex '$search_regex' fails.";
 				}
 				WP_CLI::error( $msg );
+			}
+			if ( ( $regex_limit = (int) \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit', - 1 ) ) > - 1 ) {
+				if ( ! preg_match( '/^[0-9]+$/', $regex_limit ) ) {
+					WP_CLI::error( '`--regex-limit` expects a positive integer.' );
+				}
+				$this->regex_limit = $regex_limit;
 			}
 		}
 
@@ -412,7 +414,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size
 		);
 
-		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, $this->regex_limit );
+		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
 		$col_counts = array_fill_keys( $all_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
@@ -486,7 +488,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		global $wpdb;
 
 		$count = 0;
-		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, $this->regex_limit, null !== $this->log_handle );
+		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql = self::esc_sql_ident( $col );
@@ -808,16 +810,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$diff += strlen( $new ) - strlen( $old_matches[0][ $i ][0] );
 			$i++;
 			return $new;
-		}, $old_data, $this->regex_limit );
+		}, $old_data, $this->regex_limit, $match_cnt );
 
 		$old_bits = $new_bits = array();
 		$append_next = false;
 		$last_old_offset = $last_new_offset = 0;
-		$match_cnt = count( $old_matches[0] );
 		for ( $i = 0; $i < $match_cnt; $i++ ) {
-			if ( empty( $old_matches[0][ $i ] ) || empty( $new_matches[0][ $i ] ) ) {
-				continue;
-			}
 			$old_match = $old_matches[0][ $i ][0];
 			$old_offset = $old_matches[0][ $i ][1];
 			$new_match = $new_matches[0][ $i ][0];
@@ -841,12 +839,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$new_after = \cli\safe_substr( substr( $new_data, $new_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
 				// To lessen context duplication in output, shorten the after context if it overlaps with the next match.
 				if ( $i + 1 < $match_cnt && $old_end_offset + strlen( $old_after ) > $old_matches[0][ $i + 1 ][1] ) {
-					if ( ! empty( $old_matches[0][ $i + 1 ] ) && ! empty( $new_matches[0][ $i + 1 ] ) ) {
-						$old_after       = substr( $old_after, 0, $old_matches[0][ $i + 1 ][1] - $old_end_offset );
-						$new_after       = substr( $new_after, 0, $new_matches[0][ $i + 1 ][1] - $new_end_offset );
-						$after_shortened = true;
-						// On the next iteration, will append with no before context.
-					}
+					$old_after       = substr( $old_after, 0, $old_matches[0][ $i + 1 ][1] - $old_end_offset );
+					$new_after       = substr( $new_after, 0, $new_matches[0][ $i + 1 ][1] - $new_end_offset );
+					$after_shortened = true;
+					// On the next iteration, will append with no before context.
 				}
 			}
 
