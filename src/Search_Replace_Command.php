@@ -9,7 +9,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $regex;
 	private $regex_flags;
 	private $regex_delimiter;
-	private $regex_limit = 1;
+	private $regex_limit = -1;
 	private $skip_tables;
 	private $skip_columns;
 	private $include_columns;
