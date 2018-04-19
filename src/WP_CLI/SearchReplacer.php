@@ -2,6 +2,8 @@
 
 namespace WP_CLI;
 
+use ArrayObject;
+
 class SearchReplacer {
 
 	private $from, $to;
@@ -87,9 +89,22 @@ class SearchReplacer {
 				}
 			}
 
-			elseif ( $this->recurse_objects && is_object( $data ) ) {
-				foreach ( $data as $key => $value ) {
-					$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
+			elseif ( $this->recurse_objects ) {
+				if ( $data instanceof \__PHP_Incomplete_Class ) {
+					$array = new ArrayObject( $data );
+					\WP_CLI::warning(
+						sprintf(
+							'Skipping an uninitialized class "%s", replacements might not be complete.',
+							$array['__PHP_Incomplete_Class_Name']
+						)
+					);
+					return $data;
+				}
+
+				if ( is_object( $data ) ) {
+					foreach ( $data as $key => $value ) {
+						$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
+					}
 				}
 			}
 
