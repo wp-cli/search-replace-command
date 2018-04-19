@@ -32,9 +32,9 @@ Feature: Do global search/replace
     And I run `wp site create --slug="foo" --title="foo" --email="foo@example.com"`
     And I run `wp search-replace foo bar --network`
     Then STDOUT should be a table containing rows:
-      | Table      | Column | Replacements | Type |
-      | wp_2_posts | guid   | 2            | SQL  |
-      | wp_blogs   | path   | 1            | SQL  |
+      | Table        | Column       | Replacements | Type |
+      | wp_2_options | option_value | 4            | PHP  |
+      | wp_blogs     | path         | 1            | SQL  |
 
   Scenario: Don't run on unregistered tables by default
     Given a WP install
