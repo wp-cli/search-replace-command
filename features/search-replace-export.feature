@@ -64,7 +64,12 @@ Feature: Search / replace with file export
     When I run `wp search-replace example.com example.net --export=wordpress.sql`
     Then STDOUT should contain:
       """
-      Success: Made 110 replacements and exported to wordpress.sql
+      Success: Made
+      """
+    # Skip exact number as it changes in trunk due to https://core.trac.wordpress.org/changeset/42981
+    And STDOUT should contain:
+      """
+      replacements and exported to wordpress.sql
       """
     And STDOUT should be a table containing rows:
       | Table         | Column       | Replacements | Type |

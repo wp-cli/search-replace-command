@@ -32,9 +32,9 @@ Feature: Do global search/replace
     And I run `wp site create --slug="foo" --title="foo" --email="foo@example.com"`
     And I run `wp search-replace foo bar --network`
     Then STDOUT should be a table containing rows:
-      | Table      | Column | Replacements | Type |
-      | wp_2_posts | guid   | 2            | SQL  |
-      | wp_blogs   | path   | 1            | SQL  |
+      | Table        | Column       | Replacements | Type |
+      | wp_2_options | option_value | 4            | PHP  |
+      | wp_blogs     | path         | 1            | SQL  |
 
   Scenario: Don't run on unregistered tables by default
     Given a WP install
@@ -277,6 +277,8 @@ Feature: Do global search/replace
       | wp_multicol | name   | 1            | SQL  |
       | wp_multicol | value  | 1            | SQL  |
 
+  # Skip on 5.0 for now due to difficulties introduced by https://core.trac.wordpress.org/changeset/42981
+  @less-than-wp-5.0
   Scenario Outline: Large guid search/replace where replacement contains search (or not)
     Given a WP install
     And I run `wp option get siteurl`
