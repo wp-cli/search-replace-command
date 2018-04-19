@@ -277,6 +277,8 @@ Feature: Do global search/replace
       | wp_multicol | name   | 1            | SQL  |
       | wp_multicol | value  | 1            | SQL  |
 
+  # Skip on 5.0 for now due to difficulties introduced by https://core.trac.wordpress.org/changeset/42981
+  @less-than-wp-5.0
   Scenario Outline: Large guid search/replace where replacement contains search (or not)
     Given a WP install
     And I run `wp option get siteurl`
