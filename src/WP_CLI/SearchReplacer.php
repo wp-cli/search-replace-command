@@ -3,6 +3,7 @@
 namespace WP_CLI;
 
 use ArrayObject;
+use Exception;
 
 class SearchReplacer {
 
@@ -117,7 +118,17 @@ class SearchReplacer {
 					$search_regex .= $this->from;
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
-					$data = preg_replace( $search_regex, $this->to, $data );
+
+					$result = preg_replace( $search_regex, $this->to, $data );
+					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
+						\WP_CLI::warning(
+							sprintf(
+								'The provided regular expression threw a PCRE error - %s',
+								$this->preg_error_message( $result )
+							)
+						);
+					}
+					$data = $result;
 				} else {
 					$data = str_replace( $this->from, $this->to, $data );
 				}
@@ -149,6 +160,22 @@ class SearchReplacer {
 	 */
 	public function clear_log_data() {
 		$this->log_data = array();
+	}
+
+	/**
+	 * Get the PCRE error constant name from an error value.
+	 *
+	 * @param  integer $error Error code.
+	 * @return string         Error constant name.
+	 */
+	private function preg_error_message( $error ) {
+		$constants = get_defined_constants( true );
+		if ( ! array_key_exists( 'pcre', $constants ) ) {
+			return '<unknown error>';
+		}
+
+		$names = array_flip( $constants['pcre'] );
+		return isset( $names[ $error ] ) ? $names[ $error ] : '<unknown error>';
 	}
 }
 
