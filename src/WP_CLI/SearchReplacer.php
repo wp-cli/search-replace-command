@@ -169,13 +169,19 @@ class SearchReplacer {
 	 * @return string         Error constant name.
 	 */
 	private function preg_error_message( $error ) {
-		$constants = get_defined_constants( true );
-		if ( ! array_key_exists( 'pcre', $constants ) ) {
-			return '<unknown error>';
+		static $error_names = null;
+
+		if ( null === $error_names ) {
+			$definitions    = get_defined_constants( true );
+			$pcre_constants = array_key_exists( 'pcre', $definitions )
+				? $definitions['pcre']
+				: array();
+			$error_names    = array_flip( $pcre_constants );
 		}
 
-		$names = array_flip( $constants['pcre'] );
-		return isset( $names[ $error ] ) ? $names[ $error ] : '<unknown error>';
+		return isset( $error_names[ $error ] )
+			? $error_names[ $error ]
+			: '<unknown error>';
 	}
 }
 
