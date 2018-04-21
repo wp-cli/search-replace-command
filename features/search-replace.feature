@@ -1032,3 +1032,25 @@ Feature: Do global search/replace
       """
       Success: 1 replacement to be made.
       """
+
+  # Regression test for https://github.com/wp-cli/search-replace-command/issues/68
+  Scenario: Incomplete classes are handled gracefully during (un)serialization
+
+    Given a WP install
+    And I run `wp option add cereal_isation 'a:1:{i:0;O:10:"CornFlakes":0:{}}'`
+
+    When I try `wp search-replace CornFlakes Smacks`
+    Then STDERR should contain:
+      """
+      Warning: Skipping an uninitialized class "CornFlakes", replacements might not be complete.
+      """
+    And STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+
+    When I run `wp option get cereal_isation`
+    Then STDOUT should contain:
+      """
+      a:1:{i:0;O:10:"CornFlakes":0:{}}
+      """
