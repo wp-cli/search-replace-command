@@ -2,6 +2,7 @@
 
 namespace WP_CLI;
 
+use ArrayObject;
 use Exception;
 
 class SearchReplacer {
@@ -89,9 +90,19 @@ class SearchReplacer {
 				}
 			}
 
-			elseif ( $this->recurse_objects && is_object( $data ) ) {
-				foreach ( $data as $key => $value ) {
-					$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
+			elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
+				if ( $data instanceof \__PHP_Incomplete_Class ) {
+					$array = new ArrayObject( $data );
+					\WP_CLI::warning(
+						sprintf(
+							'Skipping an uninitialized class "%s", replacements might not be complete.',
+							$array['__PHP_Incomplete_Class_Name']
+						)
+					);
+				} else {
+					foreach ( $data as $key => $value ) {
+						$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
+					}
 				}
 			}
 
@@ -155,13 +166,19 @@ class SearchReplacer {
 	 * @return string         Error constant name.
 	 */
 	private function preg_error_message( $error ) {
-		$constants = get_defined_constants( true );
-		if ( ! array_key_exists( 'pcre', $constants ) ) {
-			return '<unknown error>';
+		static $error_names = null;
+
+		if ( null === $error_names ) {
+			$definitions    = get_defined_constants( true );
+			$pcre_constants = array_key_exists( 'pcre', $definitions )
+				? $definitions['pcre']
+				: array();
+			$error_names    = array_flip( $pcre_constants );
 		}
 
-		$names = array_flip( $constants['pcre'] );
-		return isset( $names[ $error ] ) ? $names[ $error ] : '<unknown error>';
+		return isset( $error_names[ $error ] )
+			? $error_names[ $error ]
+			: '<unknown error>';
 	}
 }
 
