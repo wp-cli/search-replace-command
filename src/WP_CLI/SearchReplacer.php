@@ -90,7 +90,7 @@ class SearchReplacer {
 				}
 			}
 
-			elseif ( $this->recurse_objects && is_object( $data ) ) {
+			elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
 				if ( $data instanceof \__PHP_Incomplete_Class ) {
 					$array = new ArrayObject( $data );
 					\WP_CLI::warning(
