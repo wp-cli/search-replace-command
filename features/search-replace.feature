@@ -32,9 +32,9 @@ Feature: Do global search/replace
     And I run `wp site create --slug="foo" --title="foo" --email="foo@example.com"`
     And I run `wp search-replace foo bar --network`
     Then STDOUT should be a table containing rows:
-      | Table      | Column | Replacements | Type |
-      | wp_2_posts | guid   | 2            | SQL  |
-      | wp_blogs   | path   | 1            | SQL  |
+      | Table        | Column       | Replacements | Type |
+      | wp_2_options | option_value | 4            | PHP  |
+      | wp_blogs     | path         | 1            | SQL  |
 
   Scenario: Don't run on unregistered tables by default
     Given a WP install
@@ -277,6 +277,8 @@ Feature: Do global search/replace
       | wp_multicol | name   | 1            | SQL  |
       | wp_multicol | value  | 1            | SQL  |
 
+  # Skip on 5.0 for now due to difficulties introduced by https://core.trac.wordpress.org/changeset/42981
+  @less-than-wp-5.0
   Scenario Outline: Large guid search/replace where replacement contains search (or not)
     Given a WP install
     And I run `wp option get siteurl`
@@ -1029,6 +1031,28 @@ Feature: Do global search/replace
     Then STDOUT should contain:
       """
       Success: 1 replacement to be made.
+      """
+
+  # Regression test for https://github.com/wp-cli/search-replace-command/issues/68
+  Scenario: Incomplete classes are handled gracefully during (un)serialization
+
+    Given a WP install
+    And I run `wp option add cereal_isation 'a:1:{i:0;O:10:"CornFlakes":0:{}}'`
+
+    When I try `wp search-replace CornFlakes Smacks`
+    Then STDERR should contain:
+      """
+      Warning: Skipping an uninitialized class "CornFlakes", replacements might not be complete.
+      """
+    And STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+
+    When I run `wp option get cereal_isation`
+    Then STDOUT should contain:
+      """
+      a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
 
   Scenario: Regex search/replace with `--regex-limit=1` option
