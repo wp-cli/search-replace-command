@@ -2,6 +2,9 @@
 
 namespace WP_CLI;
 
+use ArrayObject;
+use Exception;
+
 class SearchReplacer {
 
 	private $from, $to;
@@ -90,9 +93,19 @@ class SearchReplacer {
 				}
 			}
 
-			elseif ( $this->recurse_objects && is_object( $data ) ) {
-				foreach ( $data as $key => $value ) {
-					$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
+			elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
+				if ( $data instanceof \__PHP_Incomplete_Class ) {
+					$array = new ArrayObject( $data );
+					\WP_CLI::warning(
+						sprintf(
+							'Skipping an uninitialized class "%s", replacements might not be complete.',
+							$array['__PHP_Incomplete_Class_Name']
+						)
+					);
+				} else {
+					foreach ( $data as $key => $value ) {
+						$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
+					}
 				}
 			}
 
@@ -105,7 +118,17 @@ class SearchReplacer {
 					$search_regex .= $this->from;
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
-					$data = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+
+					$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
+						\WP_CLI::warning(
+							sprintf(
+								'The provided regular expression threw a PCRE error - %s',
+								$this->preg_error_message( $result )
+							)
+						);
+					}
+					$data = $result;
 				} else {
 					$data = str_replace( $this->from, $this->to, $data );
 				}
@@ -137,6 +160,28 @@ class SearchReplacer {
 	 */
 	public function clear_log_data() {
 		$this->log_data = array();
+	}
+
+	/**
+	 * Get the PCRE error constant name from an error value.
+	 *
+	 * @param  integer $error Error code.
+	 * @return string         Error constant name.
+	 */
+	private function preg_error_message( $error ) {
+		static $error_names = null;
+
+		if ( null === $error_names ) {
+			$definitions    = get_defined_constants( true );
+			$pcre_constants = array_key_exists( 'pcre', $definitions )
+				? $definitions['pcre']
+				: array();
+			$error_names    = array_flip( $pcre_constants );
+		}
+
+		return isset( $error_names[ $error ] )
+			? $error_names[ $error ]
+			: '<unknown error>';
 	}
 }
 
