@@ -24,8 +24,8 @@ class SearchReplacer {
 	 * @param bool    $regex           Whether `$from` is a regular expression.
 	 * @param string  $regex_flags     Flags for regular expression.
 	 * @param string  $regex_delimiter Delimiter for regular expression.
-	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 * @param bool    $logging         Whether logging.
+	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 */
 	function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
 		$this->from = $from;
