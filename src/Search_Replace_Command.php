@@ -109,7 +109,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : The delimiter to use for the regex. It must be escaped if it appears in the search string. The default value is the result of `chr(1)`.
 	 *
 	 * [--regex-limit=<regex-limit>]
-	 * : The maximum possible replacements for the regex in each unserialized data bit per row. Defaults to `-1` (no limit).
+	 * : The maximum possible replacements for the regex per row (or per unserialized data bit per row). Defaults to -1 (no limit).
 	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
@@ -183,6 +183,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
+		if ( null !== ( $regex_limit = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit' ) ) ) {
+			if ( ! preg_match( '/^(?:[0-9]+|-1)$/', $regex_limit ) || 0 === (int) $regex_limit ) {
+				WP_CLI::error( '`--regex-limit` expects a non-zero positive integer or -1.' );
+			}
+			$this->regex_limit = (int) $regex_limit;
+		}
+
 		if ( ! empty( $this->regex ) ) {
 			if ( '' === $this->regex_delimiter ) {
 				$this->regex_delimiter = chr( 1 );
@@ -199,12 +206,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$msg = "The regex '$search_regex' fails.";
 				}
 				WP_CLI::error( $msg );
-			}
-			if ( ( $regex_limit = (int) \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit', - 1 ) ) > - 1 ) {
-				if ( ! preg_match( '/^[0-9]+$/', $regex_limit ) ) {
-					WP_CLI::error( '`--regex-limit` expects a positive integer.' );
-				}
-				$this->regex_limit = $regex_limit;
 			}
 		}
 

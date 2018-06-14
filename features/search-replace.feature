@@ -1062,10 +1062,9 @@ Feature: Do global search/replace
 
     When I run `wp search-replace --regex "ap{2}le" "orange" --regex-limit=1 --log`
     Then STDOUT should contain:
-    """
-    I have a pen, I have an orange. Pen, pine-apple, apple-pen.
-    """
-
+      """
+      I have a pen, I have an orange. Pen, pine-apple, apple-pen.
+      """
 
   Scenario: Regex search/replace with `--regex-limit=2` option
     Given a WP install
@@ -1073,6 +1072,29 @@ Feature: Do global search/replace
 
     When I run `wp search-replace --regex "ap{2}le" "orange" --regex-limit=2 --log`
     Then STDOUT should contain:
-    """
-    I have a pen, I have an orange. Pen, pine-orange, apple-pen.
-    """
+      """
+      I have a pen, I have an orange. Pen, pine-orange, apple-pen.
+      """
+
+  Scenario: Regex search/replace with incorrect or default `--regex-limit`
+    Given a WP install
+    When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=asdf`
+    Then STDERR should be:
+      """
+      Error: `--regex-limit` expects a non-zero positive integer or -1.
+      """
+    When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=0`
+    Then STDERR should be:
+      """
+      Error: `--regex-limit` expects a non-zero positive integer or -1.
+      """
+    When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=-2`
+    Then STDERR should be:
+      """
+      Error: `--regex-limit` expects a non-zero positive integer or -1.
+      """
+    When I run `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=-1`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
