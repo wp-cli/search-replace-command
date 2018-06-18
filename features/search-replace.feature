@@ -674,7 +674,7 @@ Feature: Do global search/replace
     When I run `wp post create --post_title='Title_baz__baz_' --post_content='Content_baz_12345678901234567890_baz_12345678901234567890' --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp search-replace '_baz_' '_' wp_posts --dry-run --log  --before_context=10 --after_context=10`
+    When I run `wp search-replace '_baz_' '_' wp_posts --dry-run --log --before_context=10 --after_context=10`
     Then STDOUT should contain:
       """
       Success: 2 replacements to be made.
@@ -851,7 +851,7 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
-    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' wp_posts --regex --log  --before_context=11 --after_context=11`
+    When I run `wp search-replace '_b([aeiou])z_' '_$1b\\1z_\0' wp_posts --regex --log --before_context=11 --after_context=11`
     Then STDOUT should contain:
       """
       Success: Made 2 replacements.
@@ -1054,4 +1054,47 @@ Feature: Do global search/replace
     Then STDOUT should contain:
       """
       a:1:{i:0;O:10:"CornFlakes":0:{}}
+      """
+
+  Scenario: Regex search/replace with `--regex-limit=1` option
+    Given a WP install
+    And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
+
+    When I run `wp search-replace --regex "ap{2}le" "orange" --regex-limit=1 --log`
+    Then STDOUT should contain:
+      """
+      I have a pen, I have an orange. Pen, pine-apple, apple-pen.
+      """
+
+  Scenario: Regex search/replace with `--regex-limit=2` option
+    Given a WP install
+    And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
+
+    When I run `wp search-replace --regex "ap{2}le" "orange" --regex-limit=2 --log`
+    Then STDOUT should contain:
+      """
+      I have a pen, I have an orange. Pen, pine-orange, apple-pen.
+      """
+
+  Scenario: Regex search/replace with incorrect or default `--regex-limit`
+    Given a WP install
+    When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=asdf`
+    Then STDERR should be:
+      """
+      Error: `--regex-limit` expects a non-zero positive integer or -1.
+      """
+    When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=0`
+    Then STDERR should be:
+      """
+      Error: `--regex-limit` expects a non-zero positive integer or -1.
+      """
+    When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=-2`
+    Then STDERR should be:
+      """
+      Error: `--regex-limit` expects a non-zero positive integer or -1.
+      """
+    When I run `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=-1`
+    Then STDOUT should contain:
+      """
+      Success:
       """

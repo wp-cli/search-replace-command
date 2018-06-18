@@ -12,6 +12,7 @@ class SearchReplacer {
 	private $regex;
 	private $regex_flags;
 	private $regex_delimiter;
+	private $regex_limit;
 	private $logging;
 	private $log_data;
 	private $max_recursion;
@@ -24,14 +25,16 @@ class SearchReplacer {
 	 * @param string  $regex_flags     Flags for regular expression.
 	 * @param string  $regex_delimiter Delimiter for regular expression.
 	 * @param bool    $logging         Whether logging.
+	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 */
-	function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false ) {
+	function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
 		$this->from = $from;
 		$this->to = $to;
 		$this->recurse_objects = $recurse_objects;
 		$this->regex = $regex;
 		$this->regex_flags = $regex_flags;
 		$this->regex_delimiter = $regex_delimiter;
+		$this->regex_limit = $regex_limit;
 		$this->logging = $logging;
 		$this->clear_log_data();
 
@@ -116,7 +119,7 @@ class SearchReplacer {
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
 
-					$result = preg_replace( $search_regex, $this->to, $data );
+					$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
 					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
 						\WP_CLI::warning(
 							sprintf(
