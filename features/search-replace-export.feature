@@ -359,3 +359,17 @@ Feature: Search / replace with file export
       """
       'test-remove-placeholder-escape{'
       """
+
+  Scenario: NULLs exported as NULL and not null string
+    Given a WP install
+    And I run `wp db query "INSERT INTO wp_postmeta VALUES (9999, 9999, NULL, 'foo')"`
+
+    When I run `wp search-replace bar replaced wp_postmeta --export`
+    Then STDOUT should contain:
+      """
+     ('9999', '9999', NULL, 'foo')
+      """
+    And STDOUT should not contain:
+      """
+     ('9999', '9999', '', 'foo')
+      """
