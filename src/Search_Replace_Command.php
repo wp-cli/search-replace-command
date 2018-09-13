@@ -561,7 +561,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$subs = array();
 			
 			foreach( $row_fields as $field_value ) {
-				if ( is_null($field_value) ) {
+				if ( null === $field_value ) {
 					$subs[] = 'NULL';
 				} else {
 					$subs[] = '%s';
