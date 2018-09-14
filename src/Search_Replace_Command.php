@@ -558,8 +558,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$export_insert_size = $this->export_insert_size;
 
 		foreach($rows as $row_fields) {
-			$sql .= '(' . join( ', ', array_fill( 0, count( $row_fields ), '%s' ) ) . ')';
-			$values = array_merge( $values, array_values( $row_fields ) );
+			$subs = array();
+			
+			foreach( $row_fields as $field_value ) {
+				if ( null === $field_value ) {
+					$subs[] = 'NULL';
+				} else {
+					$subs[] = '%s';
+					$values[] = $field_value;
+				}
+			}
+			
+			$sql .= '(' . join( ', ', $subs ) . ')';
 
 			// Add new insert statement if needed. Before this we close the previous with semicolon and write statement to sql-file.
 			// "Statement break" is needed:
