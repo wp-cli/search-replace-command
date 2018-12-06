@@ -302,7 +302,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		foreach ( $tables as $table ) {
 
-			if ( in_array( $table, $this->skip_tables ) ) {
+			if ( in_array( $table, $this->skip_tables, true ) ) {
 				continue;
 			}
 
@@ -340,11 +340,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 
 			foreach ( $columns as $col ) {
-				if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns ) ) {
+				if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) ) {
 					continue;
 				}
 
-				if ( in_array( $col, $this->skip_columns ) ) {
+				if ( in_array( $col, $this->skip_columns, true ) ) {
 					continue;
 				}
 
@@ -438,7 +438,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$row_fields = array();
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
-				if ( $value && ! in_array( $col, $primary_keys ) && ! in_array( $col, $this->skip_columns ) ) {
+				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
 					$new_value = $replacer->run( $value );
 					if ( $new_value !== $value ) {
 						$col_counts[ $col ]++;
@@ -595,7 +595,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			//			$index % $export_insert_size == 0 && $index > 0
 			//		2. Or when the loop is running last time
 			//			$index == $count
-			if ( ( $index % $export_insert_size == 0 && $index > 0 ) || $index == $count ) {
+			if ( ( $index % $export_insert_size === 0 && $index > 0 ) || $index === $count ) {
 				$sql .= ";\n";
 
 				if ( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
