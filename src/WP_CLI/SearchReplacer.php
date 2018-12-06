@@ -68,7 +68,7 @@ class SearchReplacer {
 			if ( $this->recurse_objects ) {
 
 				// If we've reached the maximum recursion level, short circuit
-				if ( $this->max_recursion != 0 && $recursion_level >= $this->max_recursion ) {
+				if ( $this->max_recursion !== 0 && $recursion_level >= $this->max_recursion ) {
 					return $data;
 				}
 
