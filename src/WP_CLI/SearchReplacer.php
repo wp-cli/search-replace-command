@@ -68,7 +68,7 @@ class SearchReplacer {
 			if ( $this->recurse_objects ) {
 
 				// If we've reached the maximum recursion level, short circuit
-				if ( $this->max_recursion !== 0 && $recursion_level >= $this->max_recursion ) {
+				if ( 0 !== $this->max_recursion && $recursion_level >= $this->max_recursion ) {
 					return $data;
 				}
 
@@ -82,7 +82,7 @@ class SearchReplacer {
 				}
 			}
 
-			if ( is_string( $data ) && ( $unserialized = @unserialize( $data ) ) !== false ) {
+			if ( is_string( $data ) && false !== ( $unserialized = @unserialize( $data ) ) ) {
 				$data = $this->_run( $unserialized, true, $recursion_level + 1 );
 			} elseif ( is_array( $data ) ) {
 				$keys = array_keys( $data );

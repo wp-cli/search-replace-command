@@ -595,7 +595,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			//			$index % $export_insert_size == 0 && $index > 0
 			//		2. Or when the loop is running last time
 			//			$index == $count
-			if ( ( $index % $export_insert_size === 0 && $index > 0 ) || $index === $count ) {
+			if ( ( 0 === $index % $export_insert_size && $index > 0 ) || $index === $count ) {
 				$sql .= ";\n";
 
 				if ( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
