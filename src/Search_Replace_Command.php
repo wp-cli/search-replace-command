@@ -721,9 +721,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private function get_colors( $assoc_args, $colors ) {
 		$color_reset = WP_CLI::colorize( '%n' );
 
-		$color_codes = implode( '', array_map( function ( $v ) {
+		$color_code_callback = function ( $v ) {
 			return substr( $v, 1 );
-		}, array_keys( \cli\Colors::getColors() ) ) );
+		};
+
+		$color_codes = array_keys( \cli\Colors::getColors() );
+		$color_codes = array_map( $color_code_callback, $color_codes );
+		$color_codes = implode( '', $color_codes );
 
 		$color_codes_regex = '/^(?:%[' . $color_codes . '])*$/';
 
