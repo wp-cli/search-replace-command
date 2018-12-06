@@ -172,8 +172,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->recurse_objects = \WP_CLI\Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
 		$this->verbose         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
+		$this->regex           = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false );
 
-		if ( ( $this->regex = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false ) ) ) {
+		if ( null !== $this->regex ) {
 			$default_regex_delimiter = false;
 			$this->regex_flags       = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags', false );
 			$this->regex_delimiter   = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '' );
@@ -183,7 +184,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		if ( null !== ( $regex_limit = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit' ) ) ) {
+		$regex_limit = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit' );
+		if ( null !== $regex_limit ) {
 			if ( ! preg_match( '/^(?:[0-9]+|-1)$/', $regex_limit ) || 0 === (int) $regex_limit ) {
 				WP_CLI::error( '`--regex-limit` expects a non-zero positive integer or -1.' );
 			}
@@ -218,7 +220,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 			exit;
 		}
 
-		if ( null !== ( $export = \WP_CLI\Utils\get_flag_value( $assoc_args, 'export' ) ) ) {
+		$export = \WP_CLI\Utils\get_flag_value( $assoc_args, 'export' );
+		if ( null !== $export ) {
 			if ( $this->dry_run ) {
 				WP_CLI::error( 'You cannot supply --dry-run and --export at the same time.' );
 			}
@@ -239,7 +242,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$php_only = true;
 		}
 
-		if ( null !== ( $log = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log' ) ) ) {
+		$log = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log' );
+		if ( null !== $log ) {
 			if ( true === $log || '-' === $log ) {
 				$this->log_handle = STDOUT;
 			} else {
@@ -250,13 +254,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 			}
 			if ( $this->log_handle ) {
-				if ( null !== ( $before_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'before_context' ) ) && preg_match( '/^[0-9]+$/', $before_context ) ) {
+				$before_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'before_context' );
+				if ( null !== $before_context && preg_match( '/^[0-9]+$/', $before_context ) ) {
 					$this->log_before_context = (int) $before_context;
 				}
-				if ( null !== ( $after_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'after_context' ) ) && preg_match( '/^[0-9]+$/', $after_context ) ) {
+
+				$after_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'after_context' );
+				if ( null !== $after_context && preg_match( '/^[0-9]+$/', $after_context ) ) {
 					$this->log_after_context = (int) $after_context;
 				}
-				if ( false !== ( $log_prefixes = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_PREFIXES' ) ) && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
+
+				$log_prefixes = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_PREFIXES' );
+				if ( false !== $log_prefixes && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
 					$this->log_prefixes = array( $matches[1], $matches[2] );
 				}
 
@@ -273,7 +282,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 						'log_new'             => '',
 					);
 				}
-				if ( false !== ( $log_colors = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_COLORS' ) ) && preg_match( '/^([^,]*),([^,]*),([^,]*)$/', $log_colors, $matches ) ) {
+
+				$log_colors = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_COLORS' );
+				if ( false !== $log_colors && preg_match( '/^([^,]*),([^,]*),([^,]*)$/', $log_colors, $matches ) ) {
 					$default_log_colors = array(
 						'log_table_column_id' => $matches[1],
 						'log_old'             => $matches[2],
@@ -629,7 +640,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$text_columns    = array();
 		$all_columns     = array();
 		$suppress_errors = $wpdb->suppress_errors();
-		if ( ( $results = $wpdb->get_results( "DESCRIBE $table_sql" ) ) ) {
+		$results         = $wpdb->get_results( "DESCRIBE $table_sql" );
+		if ( ! empty( $results ) ) {
 			foreach ( $results as $col ) {
 				if ( 'PRI' === $col->Key ) {
 					$primary_keys[] = $col->Field;
@@ -732,7 +744,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$color_codes_regex = '/^(?:%[' . $color_codes . '])*$/';
 
 		foreach ( array_keys( $colors ) as $color_col ) {
-			if ( null !== ( $col_color_flag = \WP_CLI\Utils\get_flag_value( $assoc_args, $color_col . '_color' ) ) ) {
+			$col_color_flag = \WP_CLI\Utils\get_flag_value( $assoc_args, $color_col . '_color' );
+			if ( null !== $col_color_flag ) {
 				if ( ! preg_match( $color_codes_regex, $col_color_flag, $matches ) ) {
 					WP_CLI::warning( "Unrecognized percent color code '$col_color_flag' for '{$color_col}_color'." );
 				} else {
@@ -763,7 +776,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		} else {
 			$primary_keys_sql = '';
 		}
-		if ( ! ( $results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}`$col` FROM `$table` WHERE `$col` LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ), ARRAY_N ) ) ) {
+
+		$results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}`$col` FROM `$table` WHERE `$col` LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ), ARRAY_N );
+		if ( empty( $results ) ) {
 			return 0;
 		}
 
