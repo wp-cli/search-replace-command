@@ -136,7 +136,7 @@ class SearchReplacer {
 			if ( $serialised ) {
 				return serialize( $data );
 			}
-		} catch ( Exception $error ) {
+		} catch ( Exception $error ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Deliberally empty.
 
 		}
 
