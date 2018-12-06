@@ -28,14 +28,14 @@ class SearchReplacer {
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 */
 	function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
-		$this->from = $from;
-		$this->to = $to;
+		$this->from            = $from;
+		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
-		$this->regex = $regex;
-		$this->regex_flags = $regex_flags;
+		$this->regex           = $regex;
+		$this->regex_flags     = $regex_flags;
 		$this->regex_delimiter = $regex_delimiter;
-		$this->regex_limit = $regex_limit;
-		$this->logging = $logging;
+		$this->regex_limit     = $regex_limit;
+		$this->logging         = $logging;
 		$this->clear_log_data();
 
 		// Get the XDebug nesting level. Will be zero (no limit) if no value is set
@@ -84,16 +84,12 @@ class SearchReplacer {
 
 			if ( is_string( $data ) && ( $unserialized = @unserialize( $data ) ) !== false ) {
 				$data = $this->_run( $unserialized, true, $recursion_level + 1 );
-			}
-
-			elseif ( is_array( $data ) ) {
+			} elseif ( is_array( $data ) ) {
 				$keys = array_keys( $data );
 				foreach ( $keys as $key ) {
-					$data[ $key ]= $this->_run( $data[$key], false, $recursion_level + 1, $visited_data );
+					$data[ $key ] = $this->_run( $data[ $key ], false, $recursion_level + 1, $visited_data );
 				}
-			}
-
-			elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
+			} elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
 				if ( $data instanceof \__PHP_Incomplete_Class ) {
 					$array = new ArrayObject( $data );
 					\WP_CLI::warning(
@@ -107,14 +103,12 @@ class SearchReplacer {
 						$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
 					}
 				}
-			}
-
-			else if ( is_string( $data ) ) {
+			} elseif ( is_string( $data ) ) {
 				if ( $this->logging ) {
 					$old_data = $data;
 				}
 				if ( $this->regex ) {
-					$search_regex = $this->regex_delimiter;
+					$search_regex  = $this->regex_delimiter;
 					$search_regex .= $this->from;
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
@@ -137,10 +131,10 @@ class SearchReplacer {
 				}
 			}
 
-			if ( $serialised )
+			if ( $serialised ) {
 				return serialize( $data );
-
-		} catch( Exception $error ) {
+			}
+		} catch ( Exception $error ) {
 
 		}
 
