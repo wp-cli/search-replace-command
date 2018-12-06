@@ -7,3 +7,6 @@ vendor/
 *.swp
 composer.lock
 *.log
+phpunit.xml
+phpcs.xml
+.phpcs.xml
