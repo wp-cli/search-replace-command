@@ -27,7 +27,7 @@ class SearchReplacer {
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 */
-	function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
+	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
 		$this->from            = $from;
 		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
@@ -52,7 +52,7 @@ class SearchReplacer {
 	 *
 	 * @return array       The original array with all elements replaced as needed.
 	 */
-	function run( $data, $serialised = false ) {
+	public function run( $data, $serialised = false ) {
 		return $this->_run( $data, $serialised );
 	}
 
