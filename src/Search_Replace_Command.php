@@ -826,23 +826,33 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$i           = 0;
 		$diff        = 0;
 		$new_matches = array();
-		$new_data    = preg_replace_callback( $search_regex, function ( $matches ) use ( $old_matches, $new, $is_regex, &$new_matches, &$i, &$diff ) {
-			if ( $is_regex ) {
-				// Sub in any back references, "$1", "\2" etc, in the replacement string.
-				$new = preg_replace_callback( '/(?<!\\\\)(?:\\\\\\\\)*((?:\\\\|\\$)[0-9]{1,2}|\\${[0-9]{1,2}\\})/', function ( $m ) use ( $matches ) {
-					$idx = (int) str_replace( array( '\\', '$', '{', '}' ), '', $m[0] );
-					return isset( $matches[ $idx ] ) ? $matches[ $idx ] : '';
-				}, $new );
-				$new = str_replace( '\\\\', '\\', $new ); // Unescape any backslashed backslashes.
-			}
+		$new_data    = preg_replace_callback(
+			$search_regex,
+			function ( $matches ) use ( $old_matches, $new, $is_regex, &$new_matches, &$i, &$diff ) {
+				if ( $is_regex ) {
+					// Sub in any back references, "$1", "\2" etc, in the replacement string.
+					$new = preg_replace_callback(
+						'/(?<!\\\\)(?:\\\\\\\\)*((?:\\\\|\\$)[0-9]{1,2}|\\${[0-9]{1,2}\\})/',
+						function ( $m ) use ( $matches ) {
+							$idx = (int) str_replace( array( '\\', '$', '{', '}' ), '', $m[0] );
+							return isset( $matches[ $idx ] ) ? $matches[ $idx ] : '';
+						},
+						$new
+					);
+					$new = str_replace( '\\\\', '\\', $new ); // Unescape any backslashed backslashes.
+				}
 
-			$new_matches[0][ $i ][0] = $new;
-			$new_matches[0][ $i ][1] = $old_matches[0][ $i ][1] + $diff;
+				$new_matches[0][ $i ][0] = $new;
+				$new_matches[0][ $i ][1] = $old_matches[0][ $i ][1] + $diff;
 
-			$diff += strlen( $new ) - strlen( $old_matches[0][ $i ][0] );
-			$i++;
-			return $new;
-		}, $old_data, $this->regex_limit, $match_cnt );
+				$diff += strlen( $new ) - strlen( $old_matches[0][ $i ][0] );
+				$i++;
+				return $new;
+			},
+			$old_data,
+			$this->regex_limit,
+			$match_cnt
+		);
 
 		$old_bits        = array();
 		$new_bits        = array();
