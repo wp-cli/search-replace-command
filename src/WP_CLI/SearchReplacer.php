@@ -82,7 +82,8 @@ class SearchReplacer {
 				}
 			}
 
-			if ( is_string( $data ) && false !== ( $unserialized = @unserialize( $data ) ) ) {
+			$unserialized = @unserialize( $data );
+			if ( is_string( $data ) && false !== $unserialized ) {
 				$data = $this->_run( $unserialized, true, $recursion_level + 1 );
 			} elseif ( is_array( $data ) ) {
 				$keys = array_keys( $data );
