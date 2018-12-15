@@ -14,6 +14,7 @@ class SearchReplacer {
 	private $regex_delimiter;
 	private $regex_limit;
 	private $logging;
+	private $callback;
 	private $log_data;
 	private $max_recursion;
 
@@ -27,7 +28,7 @@ class SearchReplacer {
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 */
-	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
+	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1, $callback ) {
 		$this->from            = $from;
 		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
@@ -36,6 +37,7 @@ class SearchReplacer {
 		$this->regex_delimiter = $regex_delimiter;
 		$this->regex_limit     = $regex_limit;
 		$this->logging         = $logging;
+		$this->callback        = $callback;
 		$this->clear_log_data();
 
 		// Get the XDebug nesting level. Will be zero (no limit) if no value is set
