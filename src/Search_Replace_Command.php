@@ -99,7 +99,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * [--verbose]
 	 * : Prints rows to the console as they're updated.
 	 *
-	 * [--callback]
+	 * [--callback=<user-function>]
 	 * : Runs a user-specified function on each string that contains <old>. <new> is passed as the second argument and the regex string as the third if it exists: call_user_func( 'callback', $data, $new, $search_regex ).
 	 *
 	 * [--regex]
