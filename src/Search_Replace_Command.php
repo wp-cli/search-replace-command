@@ -100,7 +100,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Prints rows to the console as they're updated.
 	 *
 	 * [--callback]
-	 * : Runs a user-specified function on each string that contains <old>. <new> is passed as the second and the regex string as the third if it exists: call_user_func( 'callback', $data, $new, $search_regex ).
+	 * : Runs a user-specified function on each string that contains <old>. <new> is passed as the second argument and the regex string as the third if it exists: call_user_func( 'callback', $data, $new, $search_regex ).
 	 *
 	 * [--regex]
 	 * : Runs the search using a regular expression (without delimiters).
@@ -225,9 +225,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 			exit;
 		}
 
-		if ( false !== $this->callback && ! function_exists( $this->callback ) ) {
-			WP_CLI::warning( 'The callback function does not exist. Skipping operation.' );
-			exit;
+		if ( false !== $this->callback ) {
+			// We must load WordPress as the function may depend on it.
+			WP_CLI::get_runner()->load_wordpress();
+			if ( ! function_exists( $this->callback ) ) {
+				WP_CLI::warning( 'The callback function does not exist. Skipping operation.' );
+				exit;
+			}
 		}
 
 		if ( $this->callback ) {
