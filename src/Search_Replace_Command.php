@@ -225,7 +225,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			exit;
 		}
 
-		if ( null !== $this->callback && ! function_exists( $this->callback ) ) {
+		if ( false !== $this->callback && ! function_exists( $this->callback ) ) {
 			WP_CLI::warning( 'The callback function does not exist. Skipping operation.' );
 			exit;
 		}
