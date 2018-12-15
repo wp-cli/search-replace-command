@@ -16,6 +16,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $format;
 	private $report;
 	private $report_changed_only;
+	private $callback;
 
 	private $log_handle         = null;
 	private $log_before_context = 40;
@@ -176,7 +177,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false );
-		$this->regex           = \WP_CLI\Utils\get_flag_value( $assoc_args, 'callback', false );
+		$this->callback        = \WP_CLI\Utils\get_flag_value( $assoc_args, 'callback', false );
 
 		if ( null !== $this->regex ) {
 			$default_regex_delimiter = false;
