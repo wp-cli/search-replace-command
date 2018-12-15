@@ -114,7 +114,13 @@ class SearchReplacer {
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
 
-					$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+					if ( $this->callback ) {
+						if ( strpos( $data, $this->from ) !== false ) {
+							$result = \call_user_func( $this->callback, $data, $this->to, $search_regex );
+						}
+					} else {
+						$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+					}
 					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
 						\WP_CLI::warning(
 							sprintf(
@@ -123,10 +129,25 @@ class SearchReplacer {
 							)
 						);
 					}
-					$data = $result;
+				} elseif ( $this->callback ) {
+					if ( strpos( $data, $this->from ) !== false ) {
+						$result = \call_user_func( $this->callback, $data, $this->to );
+					}
 				} else {
-					$data = str_replace( $this->from, $this->to, $data );
+					$result = str_replace( $this->from, $this->to, $data );
 				}
+
+				if ( $this->callback ) {
+					if ( false === $result || is_wp_error( $result ) ) {
+						\WP_CLI::warning( 'The callback function threw an error. Stopping operation.' );
+						exit;
+					} elseif ( ! is_string( $result ) ) {
+						\WP_CLI::warning( 'The callback function did not return a string. Stopping operation.' );
+						exit;
+					}
+				}
+
+				$data = $result;
 				if ( $this->logging && $old_data !== $data ) {
 					$this->log_data[] = $old_data;
 				}

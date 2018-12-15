@@ -89,7 +89,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) which is more thorough,
-	 * but slower.
+	 * but slower. If --callback is specified, --precise is inferred.
 	 *
 	 * [--recurse-objects]
 	 * : Enable recursing into objects to replace strings. Defaults to true;
@@ -97,6 +97,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--verbose]
 	 * : Prints rows to the console as they're updated.
+	 *
+	 * [--callback]
+	 * : Runs a user-specified function on each string that contains <old>. <new> is passed as the second and the regex string as the third if it exists: call_user_func( 'callback', $data, $new, $search_regex ).
 	 *
 	 * [--regex]
 	 * : Runs the search using a regular expression (without delimiters).
@@ -173,6 +176,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false );
+		$this->regex           = \WP_CLI\Utils\get_flag_value( $assoc_args, 'callback', false );
 
 		if ( null !== $this->regex ) {
 			$default_regex_delimiter = false;
@@ -218,6 +222,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 		if ( $old === $new && ! $this->regex ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
 			exit;
+		}
+
+		if ( null !== $this->callback && ! function_exists( $this->callback ) ) {
+			WP_CLI::warning( 'The callback function does not exist. Skipping operation.' );
+			exit;
+		}
+
+		if ( $this->callback ) {
+			$php_only = true;
 		}
 
 		$export = \WP_CLI\Utils\get_flag_value( $assoc_args, 'export' );
