@@ -221,20 +221,21 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 
 		if ( $old === $new && ! $this->regex ) {
-			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
-			exit;
+			WP_CLI::error( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
 		}
 
 		if ( false !== $this->callback ) {
 			// We must load WordPress as the function may depend on it.
 			WP_CLI::get_runner()->load_wordpress();
 			if ( ! function_exists( $this->callback ) ) {
-				WP_CLI::warning( 'The callback function does not exist. Skipping operation.' );
-				exit;
+				WP_CLI::error( 'The callback function does not exist. Skipping operation.' );
 			}
 		}
 
 		if ( $this->callback ) {
+			if ( false === $php_only ) {
+				WP_CLI::error( 'PHP is required to execute a callback function. --no-precise cannot be set.' );
+			}
 			$php_only = true;
 		}
 
