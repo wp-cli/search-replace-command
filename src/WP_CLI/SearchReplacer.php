@@ -28,7 +28,7 @@ class SearchReplacer {
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 */
-	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1, $callback ) {
+	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1, $callback = false ) {
 		$this->from            = $from;
 		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
@@ -116,14 +116,18 @@ class SearchReplacer {
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
 
+					$check = true; // Set to avoid bogus error on strpos
+
 					if ( $this->callback ) {
-						if ( strpos( $data, $this->from ) !== false ) {
+						if ( $check = strpos( $data, $this->from ) !== false ) {
 							$result = \call_user_func( $this->callback, $data, $this->to, $search_regex );
+						} else {
+							$result = $data;
 						}
 					} else {
 						$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
 					}
-					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
+					if ( ( null === $result || PREG_NO_ERROR !== preg_last_error() ) && null !== $check ) {
 						\WP_CLI::warning(
 							sprintf(
 								'The provided regular expression threw a PCRE error - %s',
@@ -144,11 +148,9 @@ class SearchReplacer {
 
 				if ( $this->callback ) {
 					if ( false === $result || is_wp_error( $result ) ) {
-						\WP_CLI::warning( 'The callback function threw an error. Stopping operation.' );
-						exit;
+						\WP_CLI::error( 'The callback function threw an error. Stopping operation.' );
 					} elseif ( ! is_string( $result ) ) {
-						\WP_CLI::warning( 'The callback function did not return a string. Stopping operation.' );
-						exit;
+						\WP_CLI::error( 'The callback function did not return a string. Stopping operation.' );
 					}
 				}
 
