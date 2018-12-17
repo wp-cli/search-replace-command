@@ -221,7 +221,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 
 		if ( $old === $new && ! $this->regex ) {
-			WP_CLI::error( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
+			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
+			exit;
 		}
 
 		if ( false !== $this->callback ) {
