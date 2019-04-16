@@ -367,14 +367,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 				if ( ! $php_only && ! $this->regex ) {
 					$col_sql          = self::esc_sql_ident( $col );
 					$wpdb->last_error = '';
-					$serialRow        = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
+					$serial_row       = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
 					// When the regex triggers an error, we should fall back to PHP
 					if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
-						$serialRow = true;
+						$serial_row = true;
 					}
 				}
 
-				if ( $php_only || $this->regex || null !== $serialRow ) {
+				if ( $php_only || $this->regex || null !== $serial_row ) {
 					$type  = 'PHP';
 					$count = $this->php_handle_col( $col, $primary_keys, $table, $old, $new );
 				} else {
