@@ -7,7 +7,8 @@ use Exception;
 
 class SearchReplacer {
 
-	private $from, $to;
+	private $from;
+	private $to;
 	private $recurse_objects;
 	private $regex;
 	private $regex_flags;
