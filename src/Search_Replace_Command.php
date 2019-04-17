@@ -321,8 +321,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			if ( $this->export_handle ) {
 				fwrite( $this->export_handle, "\nDROP TABLE IF EXISTS $table_sql;\n" );
+
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 				$row = $wpdb->get_row( "SHOW CREATE TABLE $table_sql", ARRAY_N );
+
 				fwrite( $this->export_handle, $row[1] . ";\n" );
 				list( $table_report, $total_rows ) = $this->php_export_table( $table, $old, $new );
 				if ( $this->report ) {
@@ -368,8 +370,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 				if ( ! $php_only && ! $this->regex ) {
 					$col_sql          = self::esc_sql_ident( $col );
 					$wpdb->last_error = '';
+
 					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-					$serial_row       = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
+					$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
+
 					// When the regex triggers an error, we should fall back to PHP
 					if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
 						$serial_row = true;
@@ -522,8 +526,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$col_sql          = self::esc_sql_ident( $col );
 		$where            = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
 		$primary_keys_sql = implode( ',', self::esc_sql_ident( $primary_keys ) );
+
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-		$rows             = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where}" );
+		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where}" );
+
 		foreach ( $rows as $keys ) {
 			$where_sql = '';
 			foreach ( (array) $keys as $k => $v ) {
@@ -532,8 +538,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 				$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
 			}
+
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 			$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
+
 			if ( '' === $col_value ) {
 				continue;
 			}
@@ -648,8 +656,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$text_columns    = array();
 		$all_columns     = array();
 		$suppress_errors = $wpdb->suppress_errors();
+
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-		$results         = $wpdb->get_results( "DESCRIBE $table_sql" );
+		$results = $wpdb->get_results( "DESCRIBE $table_sql" );
+
 		if ( ! empty( $results ) ) {
 			foreach ( $results as $col ) {
 				if ( 'PRI' === $col->Key ) {
@@ -791,6 +801,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 		$results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}{$col_sql} FROM {$table_sql} WHERE {$col_sql} LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ), ARRAY_N );
+
 		if ( empty( $results ) ) {
 			return 0;
 		}
