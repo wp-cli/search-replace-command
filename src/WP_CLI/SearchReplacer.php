@@ -54,14 +54,14 @@ class SearchReplacer {
 	 * @return array       The original array with all elements replaced as needed.
 	 */
 	public function run( $data, $serialised = false ) {
-		return $this->_run( $data, $serialised );
+		return $this->run_recursively( $data, $serialised );
 	}
 
 	/**
 	 * @param int          $recursion_level Current recursion depth within the original data.
 	 * @param array        $visited_data    Data that has been seen in previous recursion iterations.
 	 */
-	private function _run( $data, $serialised, $recursion_level = 0, $visited_data = array() ) {
+	private function run_recursively( $data, $serialised, $recursion_level = 0, $visited_data = array() ) {
 
 		// some unseriliased data cannot be re-serialised eg. SimpleXMLElements
 		try {
@@ -85,11 +85,11 @@ class SearchReplacer {
 
 			$unserialized = @unserialize( $data );
 			if ( is_string( $data ) && false !== $unserialized ) {
-				$data = $this->_run( $unserialized, true, $recursion_level + 1 );
+				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1 );
 			} elseif ( is_array( $data ) ) {
 				$keys = array_keys( $data );
 				foreach ( $keys as $key ) {
-					$data[ $key ] = $this->_run( $data[ $key ], false, $recursion_level + 1, $visited_data );
+					$data[ $key ] = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
 				}
 			} elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
 				if ( $data instanceof \__PHP_Incomplete_Class ) {
@@ -102,7 +102,7 @@ class SearchReplacer {
 					);
 				} else {
 					foreach ( $data as $key => $value ) {
-						$data->$key = $this->_run( $value, false, $recursion_level + 1, $visited_data );
+						$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
 					}
 				}
 			} elseif ( is_string( $data ) ) {
