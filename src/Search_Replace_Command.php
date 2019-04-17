@@ -544,9 +544,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 
 			if ( $this->dry_run ) {
-				if ( $value != $col_value ) {
-					$count++;
-				}
+				$count++;
 			} else {
 				$where = array();
 				foreach ( (array) $keys as $k => $v ) {
