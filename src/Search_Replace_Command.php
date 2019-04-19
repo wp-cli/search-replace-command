@@ -200,6 +200,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$search_regex .= $old;
 			$search_regex .= $this->regex_delimiter;
 			$search_regex .= $this->regex_flags;
+
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Preventing a warning when testing the regex.
 			if ( false === @preg_match( $search_regex, '' ) ) {
 				if ( $default_regex_delimiter ) {
 					$flags_msg = $this->regex_flags ? "flags '$this->regex_flags'" : 'no flags';
@@ -236,6 +238,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 			}
 			$export_insert_size = WP_CLI\Utils\get_flag_value( $assoc_args, 'export_insert_size', 50 );
+			// phpcs:ignore WordPress.PHP.StrictComparisons.LooseComparison -- See the code, this is deliberate.
 			if ( (int) $export_insert_size == $export_insert_size && $export_insert_size > 0 ) {
 				$this->export_insert_size = $export_insert_size;
 			}
@@ -691,7 +694,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// 4.0
 			$old = $wpdb->esc_like( $old );
 		} else {
-			// 3.9 or less
+			// phpcs:ignore WordPress.WP.DeprecatedFunctions.like_escapeFound -- BC-layer for WP 3.9 or less.
 			$old = like_escape( esc_sql( $old ) ); // Note: this double escaping is actually necessary, even though `esc_like()` will be used in a `prepare()`.
 		}
 
