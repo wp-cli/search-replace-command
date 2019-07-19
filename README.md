@@ -63,7 +63,7 @@ change primary key values.
 
 	[--skip-tables=<tables>]
 		Do not perform the replacement on specific tables. Use commas to
-		specify multiple tables.
+		specify multiple tables. Wildcards are supported, e.g. `'wp_*options'` or `'wp_post*'`.
 
 	[--skip-columns=<columns>]
 		Do not perform the replacement on specific columns. Use commas to
