@@ -26,6 +26,20 @@ Feature: Search / replace with file export
       INSERT INTO `wp_options`
       """
 
+    When I run `wp search-replace example.com example.net --skip-tables=wp_opt\?ons,wp_post\* --export`
+    Then STDOUT should not contain:
+      """
+      wp_posts
+      """
+    And STDOUT should not contain:
+      """
+      wp_postmeta
+      """
+    And STDOUT should not contain:
+      """
+      wp_options
+      """
+
     When I run `wp search-replace example.com example.net --skip-columns=option_value --export`
     Then STDOUT should contain:
       """
