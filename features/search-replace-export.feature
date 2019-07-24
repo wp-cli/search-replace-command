@@ -39,6 +39,10 @@ Feature: Search / replace with file export
       """
       wp_options
       """
+    And STDOUT should contain:
+      """
+      wp_users
+      """
 
     When I run `wp search-replace example.com example.net --skip-columns=option_value --export`
     Then STDOUT should contain:

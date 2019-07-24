@@ -24,6 +24,10 @@ Feature: Do global search/replace
       """
       wp_postmeta
       """
+    And STDOUT should contain:
+      """
+      wp_users
+      """
 
     When I run `wp search-replace foo bar --skip-columns=guid`
     Then STDOUT should not contain:
