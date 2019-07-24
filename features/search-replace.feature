@@ -15,6 +15,20 @@ Feature: Do global search/replace
       wp_posts
       """
 
+    When I run `wp search-replace foo bar --skip-tables=wp_post\*`
+    Then STDOUT should not contain:
+      """
+      wp_posts
+      """
+    And STDOUT should not contain:
+      """
+      wp_postmeta
+      """
+    And STDOUT should contain:
+      """
+      wp_users
+      """
+
     When I run `wp search-replace foo bar --skip-columns=guid`
     Then STDOUT should not contain:
       """
