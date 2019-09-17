@@ -16,6 +16,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $format;
 	private $report;
 	private $report_changed_only;
+	private $callback;
 
 	private $log_handle         = null;
 	private $log_before_context = 40;
@@ -89,7 +90,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) which is more thorough,
-	 * but slower.
+	 * but slower. If --callback is specified, --precise is inferred.
 	 *
 	 * [--recurse-objects]
 	 * : Enable recursing into objects to replace strings. Defaults to true;
@@ -97,6 +98,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--verbose]
 	 * : Prints rows to the console as they're updated.
+	 *
+	 * [--callback=<user-function>]
+	 * : Runs a user-specified function on each string that contains <old>. <new> is passed as the second argument and the regex string as the third if it exists: call_user_func( 'callback', $data, $new, $search_regex ).
 	 *
 	 * [--regex]
 	 * : Runs the search using a regular expression (without delimiters).
@@ -173,6 +177,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false );
+		$this->callback        = \WP_CLI\Utils\get_flag_value( $assoc_args, 'callback', false );
 
 		if ( null !== $this->regex ) {
 			$default_regex_delimiter = false;
@@ -220,6 +225,21 @@ class Search_Replace_Command extends WP_CLI_Command {
 		if ( $old === $new && ! $this->regex ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
 			exit;
+		}
+
+		if ( false !== $this->callback ) {
+			// We must load WordPress as the function may depend on it.
+			WP_CLI::get_runner()->load_wordpress();
+			if ( ! function_exists( $this->callback ) ) {
+				WP_CLI::error( 'The callback function does not exist. Skipping operation.' );
+			}
+		}
+
+		if ( $this->callback ) {
+			if ( false === $php_only ) {
+				WP_CLI::error( 'PHP is required to execute a callback function. --no-precise cannot be set.' );
+			}
+			$php_only = true;
 		}
 
 		$export = \WP_CLI\Utils\get_flag_value( $assoc_args, 'export' );
@@ -272,7 +292,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$this->log_prefixes = array( $matches[1], $matches[2] );
 				}
 
-				if ( STDOUT === $this->log_handle ) {
+				if ( true || STDOUT === $this->log_handle ) {
 					$default_log_colors = array(
 						'log_table_column_id' => '%B',
 						'log_old'             => '%R',
@@ -448,7 +468,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size,
 		);
 
-		$replacer   = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
+		$replacer   = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit, $this->callback );
 		$col_counts = array_fill_keys( $all_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
@@ -461,7 +481,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
 				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
-					$new_value = $replacer->run( $value );
+					$new_value = $replacer->run( $value, false, ["table"=>$table, "col" => $col, "key" => $primary_keys] );
 					if ( $new_value !== $value ) {
 						$col_counts[ $col ]++;
 						$value = $new_value;
@@ -525,7 +545,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		global $wpdb;
 
 		$count    = 0;
-		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
+		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit, $this->callback );
 
 		$table_sql        = self::esc_sql_ident( $table );
 		$col_sql          = self::esc_sql_ident( $col );
@@ -551,7 +571,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				continue;
 			}
 
-			$value = $replacer->run( $col_value );
+			$value = $replacer->run( $col_value, false, ["table"=>$table, "key"=>$v] );
 
 			if ( $value === $col_value ) {
 				continue;
