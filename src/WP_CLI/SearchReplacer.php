@@ -120,7 +120,7 @@ class SearchReplacer {
 					$check = true; // Set to avoid bogus error on strpos
 
 					if ( $this->callback ) {
-            $result = \call_user_func( $this->callback, $data, $this->to, $search_regex, $opts );
+						$result = \call_user_func( $this->callback, $data, $this->to, $search_regex, $opts );
 					} else {
 						$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
 					}
