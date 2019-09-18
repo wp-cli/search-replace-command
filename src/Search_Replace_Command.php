@@ -94,6 +94,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * specify multiple specifictions.
 	 * <row-col-spec> format: <table>[,table]:[column,...]:quoted-SQL-condition
 	 *
+	 * [--revision]
+	 * : Default true.
+	 * If false, then identical to --where='posts::post_status="publish";postmeta::post_id IN (SELECT ID FROM wp_posts WHERE post_status="publish")'
+	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) which is more thorough,
 	 * but slower. If --callback is specified, --precise is inferred.
@@ -228,6 +232,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->skip_tables     = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-tables' ) );
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 		$this->where           = $this->develop_where_specs(\WP_CLI\Utils\get_flag_value( $assoc_args, 'where' ) );
+    if ( isset($assoc_args['revision']) && $assoc_args['revision'] === false) {
+			$this->no_revision();
+		}
 
 		if ( $old === $new && ! $this->regex ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
@@ -1020,27 +1027,25 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 	public function develop_where_specs( $str_specs ) {
 		global $wpdb;
-
 		$specs = array_filter( explode( ';', $str_specs ) );
 		$clauses = [];
 		foreach( $specs as $spec ) {
 			list( $tables, $cols, $conditions ) = explode( ':', $spec, 3 );
-			$cols  = array_filter( explode( ',', $cols ) );
-			if ( !$cols ) {
-				$cols = ['*'];
-			}
-			foreach( array_filter( explode( ',', $tables ) ) as $table ) {
-				$table = $wpdb->{$table} ?? $table;
-				if ( !isset( $clauses[$table] ) ) {
-					$clauses[$table] = [];
-				}
+			$tables = array_filter( explode( ',', $tables ) );
+			$cols   = array_filter( explode( ',', $cols ) ) ? : ['*'];
+			foreach( $tables as $table ) {
 				foreach( $cols as $col ) {
-					$clauses[$table][$col][] = $conditions;
+					$clauses[$wpdb->{$table} ?? $table][$col][] = $conditions;
 				}
 			}
 		}
-
 		return $clauses;
+	}
+
+	public function no_revision() {
+		global $wpdb;
+		$this->where[$wpdb->posts]['*'][] = self::esc_sql_ident('post_status') . '=' . self::esc_sql_value("publish");
+		$this->where[$wpdb->postmeta]['*'][] = self::esc_sql_ident('post_id') . ' IN ( SELECT ID FROM wp_posts WHERE ' . self::esc_sql_ident('post_status') . '=' . self::esc_sql_value("publish") . ')';
 	}
 
 	public function get_clauses( $table, $column = null ) {
