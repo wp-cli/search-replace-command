@@ -100,6 +100,12 @@ class SearchReplacer {
 							$array['__PHP_Incomplete_Class_Name']
 						)
 					);
+				} elseif ( $data instanceof \stdClass ) {
+					new ReflectionClass($data);
+					$props = $reflect->getProperties(ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED);
+					foreach ( $props as $prop ) {
+						$prop->setValue($this->run_recursively( $prop->getValue(), false, $recursion_level + 1, $visited_data );
+					}
 				} else {
 					foreach ( $data as $key => $value ) {
 						$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
