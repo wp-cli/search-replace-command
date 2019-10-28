@@ -100,7 +100,7 @@ class SearchReplacer {
 							$array['__PHP_Incomplete_Class_Name']
 						)
 					);
-				} elseif ( $data instanceof \stdClass ) {
+				} elseif ( ! $data instanceof \stdClass ) {
 					new ReflectionClass($data);
 					$props = $reflect->getProperties(ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED);
 					foreach ( $props as $prop ) {
