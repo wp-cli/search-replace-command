@@ -195,13 +195,10 @@ Feature: Do global search/replace
   Scenario: Regex search/replace with a incorrect `--regex-flags`
     Given a WP install
     When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-flags='kppr'`
-    Then STDERR should contain:
+    Then STDERR should be:
       """
-      (Hello)\s(world)
-      """
-    And STDERR should contain:
-      """
-      kppr
+      Error: The regex pattern '(Hello)\s(world)' with default delimiter 'chr(1)' and flags 'kppr' fails.
+      preg_match(): Unknown modifier 'k'.
       """
     And the return code should be 1
 
@@ -403,6 +400,7 @@ Feature: Do global search/replace
     Then STDERR should be:
       """
       Error: The regex '1HTTP://EXAMPLE.COM1i' fails.
+      preg_match(): Delimiter must not be alphanumeric or backslash.
       """
     And the return code should be 1
 
@@ -410,6 +408,7 @@ Feature: Do global search/replace
     Then STDERR should be:
       """
       Error: The regex pattern 'regex error)' with default delimiter 'chr(1)' and no flags fails.
+      preg_match(): Compilation failed: unmatched parentheses at offset 11.
       """
     And the return code should be 1
 
@@ -417,6 +416,7 @@ Feature: Do global search/replace
     Then STDERR should be:
       """
       Error: The regex pattern 'regex error)' with default delimiter 'chr(1)' and flags 'u' fails.
+      preg_match(): Compilation failed: unmatched parentheses at offset 11.
       """
     And the return code should be 1
 
@@ -424,6 +424,7 @@ Feature: Do global search/replace
     Then STDERR should be:
       """
       Error: The regex '/regex error)/' fails.
+      preg_match(): Compilation failed: unmatched parentheses at offset 11.
       """
     And the return code should be 1
 
@@ -431,6 +432,7 @@ Feature: Do global search/replace
     Then STDERR should be:
       """
       Error: The regex '/regex error)/u' fails.
+      preg_match(): Compilation failed: unmatched parentheses at offset 11.
       """
     And the return code should be 1
 
