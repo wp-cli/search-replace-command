@@ -405,34 +405,62 @@ Feature: Do global search/replace
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex`
-    Then STDERR should be:
+    Then STDERR should contain:
       """
       Error: The regex pattern 'regex error)' with default delimiter 'chr(1)' and no flags fails.
-      preg_match(): Compilation failed: unmatched parentheses at offset 11.
+      """
+    And STDERR should contain:
+      """
+      preg_match(): Compilation failed:
+      """
+    And STDERR should contain:
+      """
+      at offset 11
       """
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-flags=u`
-    Then STDERR should be:
+    Then STDERR should contain:
       """
       Error: The regex pattern 'regex error)' with default delimiter 'chr(1)' and flags 'u' fails.
-      preg_match(): Compilation failed: unmatched parentheses at offset 11.
+      """
+    And STDERR should contain:
+      """
+      preg_match(): Compilation failed:
+      """
+    And STDERR should contain:
+      """
+      at offset 11
       """
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/`
-    Then STDERR should be:
+    Then STDERR should contain:
       """
       Error: The regex '/regex error)/' fails.
-      preg_match(): Compilation failed: unmatched parentheses at offset 11.
+      """
+    And STDERR should contain:
+      """
+      preg_match(): Compilation failed:
+      """
+    And STDERR should contain:
+      """
+      at offset 11
       """
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/ --regex-flags=u`
-    Then STDERR should be:
+    Then STDERR should contain:
       """
       Error: The regex '/regex error)/u' fails.
-      preg_match(): Compilation failed: unmatched parentheses at offset 11.
+      """
+    And STDERR should contain:
+      """
+      preg_match(): Compilation failed:
+      """
+    And STDERR should contain:
+      """
+      at offset 11
       """
     And the return code should be 1
 
