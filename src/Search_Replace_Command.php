@@ -203,13 +203,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Preventing a warning when testing the regex.
 			if ( false === @preg_match( $search_regex, '' ) ) {
+				$error              = error_get_last();
+				$preg_error_message = ( ! empty( $error ) && array_key_exists( 'message', $error ) ) ? "\n{$error['message']}." : '';
 				if ( $default_regex_delimiter ) {
 					$flags_msg = $this->regex_flags ? "flags '$this->regex_flags'" : 'no flags';
 					$msg       = "The regex pattern '$old' with default delimiter 'chr(1)' and {$flags_msg} fails.";
 				} else {
 					$msg = "The regex '$search_regex' fails.";
 				}
-				WP_CLI::error( $msg );
+				WP_CLI::error( $msg . $preg_error_message );
 			}
 		}
 
