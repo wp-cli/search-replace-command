@@ -231,8 +231,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->skip_columns    = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
 		$this->skip_tables     = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-tables' ) );
 		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
-		$this->where           = $this->develop_where_specs(\WP_CLI\Utils\get_flag_value( $assoc_args, 'where' ) );
-    if ( isset($assoc_args['revision']) && $assoc_args['revision'] === false) {
+		$this->where           = $this->develop_where_specs( \WP_CLI\Utils\get_flag_value( $assoc_args, 'where' ) );
+		if ( isset( $assoc_args['revision'] ) && false === $assoc_args['revision'] ) {
 			$this->no_revision();
 		}
 
@@ -498,7 +498,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
 				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
-					$new_value = $replacer->run( $value, false, ["table"=>$table, "col" => $col, "key" => $primary_keys] );
+					$new_value = $replacer->run(
+						$value,
+						false,
+						[
+							'table' => $table,
+							'col'   => $col,
+							'key'   => $primary_keys,
+						]
+					);
 					if ( $new_value !== $value ) {
 						$col_counts[ $col ]++;
 						$value = $new_value;
@@ -571,10 +579,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$col_sql          = self::esc_sql_ident( $col );
 		$primary_keys_sql = implode( ',', self::esc_sql_ident( $primary_keys ) );
 
-		if ( !$this->regex ) {
+		if ( ! $this->regex ) {
 			$where[] = $col_sql . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
 		}
-		$where = $where ? " WHERE " . implode( ' AND ', $where ) : '';
+		$where = $where ? ' WHERE ' . implode( ' AND ', $where ) : '';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where}" );
@@ -594,7 +602,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 				continue;
 			}
 
-			$value = $replacer->run( $col_value, false, ["table"=>$table, "key"=>$v] );
+			$value = $replacer->run(
+				$col_value,
+				false,
+				[
+					'table' => $table,
+					'key'   => $v,
+				]
+			);
 
 			if ( $value === $col_value ) {
 				continue;
@@ -1027,15 +1042,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 	public function develop_where_specs( $str_specs ) {
 		global $wpdb;
-		$specs = array_filter( explode( ';', $str_specs ) );
+		$specs   = array_filter( explode( ';', $str_specs ) );
 		$clauses = [];
-		foreach( $specs as $spec ) {
+		foreach ( $specs as $spec ) {
 			list( $tables, $cols, $conditions ) = explode( ':', $spec, 3 );
-			$tables = array_filter( explode( ',', $tables ) );
-			$cols   = array_filter( explode( ',', $cols ) ) ? : ['*'];
-			foreach( $tables as $table ) {
-				foreach( $cols as $col ) {
-					$clauses[$wpdb->{$table} ?? $table][$col][] = $conditions;
+			$tables                             = array_filter( explode( ',', $tables ) );
+			$cols                               = array_filter( explode( ',', $cols ) ) ? : [ '*' ];
+			foreach ( $tables as $table ) {
+				foreach ( $cols as $col ) {
+					$clauses[ empty( $wpdb->{$table} ) ? $table : $wpdb->{$table} ][ $col ][] = $conditions;
 				}
 			}
 		}
@@ -1044,15 +1059,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 	public function no_revision() {
 		global $wpdb;
-		$this->where[$wpdb->posts]['*'][] = self::esc_sql_ident('post_status') . '=' . self::esc_sql_value("publish");
-		$this->where[$wpdb->postmeta]['*'][] = self::esc_sql_ident('post_id') . ' IN ( SELECT ID FROM wp_posts WHERE ' . self::esc_sql_ident('post_status') . '=' . self::esc_sql_value("publish") . ')';
+		$this->where[ $wpdb->posts ]['*'][]    = self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' );
+		$this->where[ $wpdb->postmeta ]['*'][] = self::esc_sql_ident( 'post_id' ) . ' IN ( SELECT ID FROM wp_posts WHERE ' . self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' ) . ')';
 	}
 
 	public function get_clauses( $table, $column = null ) {
 		return array_filter(
 			array_merge(
-				$this->where[$table][$column] ?? [],
-				$this->where[$table]['*'] ?? []
+				empty( $this->where[ $table ][ $column ] ) ? [] : $this->where[ $table ][ $column ],
+				empty( $this->where[ $table ]['*'] ) ? [] : $this->where[ $table ]['*']
 			)
 		);
 	}
