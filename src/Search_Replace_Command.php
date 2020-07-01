@@ -306,7 +306,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$this->log_prefixes = array( $matches[1], $matches[2] );
 				}
 
-				if ( true || STDOUT === $this->log_handle ) {
+				if ( STDOUT === $this->log_handle ) {
 					$default_log_colors = array(
 						'log_table_column_id' => '%B',
 						'log_old'             => '%R',
