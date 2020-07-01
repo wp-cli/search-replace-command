@@ -539,7 +539,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return array( $table_report, $total_rows );
 	}
 
-	private function sql_handle_col( $col, $primary_keys, $table, $old, $new, $where ) {
+	private function sql_handle_col( $col, $primary_keys, $table, $old, $new, $clauses ) {
 		global $wpdb;
 
 		$table_sql = self::esc_sql_ident( $table );
