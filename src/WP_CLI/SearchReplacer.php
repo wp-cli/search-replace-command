@@ -102,9 +102,9 @@ class SearchReplacer {
 					);
 				} elseif ( ! $data instanceof \stdClass ) {
 					new ReflectionClass( $data );
-					$props = $reflect->getProperties( ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED );
+					$props = $reflect->getProperties( ReflectionProperty::IS_PUBLIC | ReflectionProperty::IS_PROTECTED | ReflectionProperty::IS_PRIVATE );
 					foreach ( $props as $prop ) {
-						$prop->setValue( $this->run_recursively( $prop->getValue(), false, $recursion_level + 1, $visited_data ) );
+						$prop->setValue( $data, $this->run_recursively( $prop->getValue(), false, $recursion_level + 1, $visited_data ) );
 					}
 				} else {
 					foreach ( $data as $key => $value ) {
