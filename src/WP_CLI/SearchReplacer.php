@@ -84,7 +84,7 @@ class SearchReplacer {
 			}
 
 			$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
-			if ( is_string( $data ) && false !== $unserialized ) {
+			if ( false !== $unserialized ) {
 				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1 );
 			} elseif ( is_array( $data ) ) {
 				$keys = array_keys( $data );
@@ -180,4 +180,3 @@ class SearchReplacer {
 			: '<unknown error>';
 	}
 }
-
