@@ -47,10 +47,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * <old>
+	 * [<old>]
 	 * : A string to search for within the database.
 	 *
-	 * <new>
+	 * [<new>]
+	 * : Replace instances of the first string with this new string.
+	 *
+	 * [--old=<old>]
+	 * : A string to search for within the database.
+	 *
+	 * [--new=<new>]
 	 * : Replace instances of the first string with this new string.
 	 *
 	 * [<table>...]
@@ -171,8 +177,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 */
 	public function __invoke( $args, $assoc_args ) {
 		global $wpdb;
-		$old                   = array_shift( $args );
-		$new                   = array_shift( $args );
+
+		$old = empty( $assoc_args['old'] ) ? array_shift( $args ) : $assoc_args['old'];
+		$new = empty( $assoc_args['new'] ) ? array_shift( $args ) : $assoc_args['new'];
+
+		( empty( $new ) || empty( $old ) ) && WP_CLI::error( 'Replacement value or search value are empty. Skipping operation.' );
+
 		$total                 = 0;
 		$report                = array();
 		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run' );
