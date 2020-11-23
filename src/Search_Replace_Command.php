@@ -181,8 +181,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$old = empty( $assoc_args['old'] ) ? array_shift( $args ) : $assoc_args['old'];
 		$new = empty( $assoc_args['new'] ) ? array_shift( $args ) : $assoc_args['new'];
 
-		( empty( $new ) || empty( $old ) ) && WP_CLI::error( 'Replacement value or search value are empty. Skipping operation.' );
-
 		$total                 = 0;
 		$report                = array();
 		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run' );
