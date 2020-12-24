@@ -533,46 +533,55 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$col_sql          = self::esc_sql_ident( $col );
 		$where            = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
 		$primary_keys_sql = implode( ',', self::esc_sql_ident( $primary_keys ) );
+		$order_by_keys = array_map(
+			function( $key ) {
+				return "{$key} ASC";
+			},
+			$primary_keys
+		);
+		$order_by_sql = "ORDER BY " . implode( ',', self::esc_sql_ident( $order_by_keys ) );
+		$limit = 1000;
+		$offset = 0;
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-		$rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where}" );
-
-		foreach ( $rows as $keys ) {
-			$where_sql = '';
-			foreach ( (array) $keys as $k => $v ) {
-				if ( strlen( $where_sql ) ) {
-					$where_sql .= ' AND ';
-				}
-				$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
-			}
-
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-			$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
-
-			if ( '' === $col_value ) {
-				continue;
-			}
-
-			$value = $replacer->run( $col_value );
-
-			if ( $value === $col_value ) {
-				continue;
-			}
-
-			if ( $this->log_handle ) {
-				$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
-				$replacer->clear_log_data();
-			}
-
-			if ( $this->dry_run ) {
-				$count++;
-			} else {
-				$where = array();
+		while ( $rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where} {$order_by_sql} LIMIT {$limit} OFFSET {$offset}" ) ) {
+			foreach ( $rows as $keys ) {
+				$where_sql = '';
 				foreach ( (array) $keys as $k => $v ) {
-					$where[ $k ] = $v;
+					if ( strlen( $where_sql ) ) {
+						$where_sql .= ' AND ';
+					}
+					$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
 				}
 
-				$count += $wpdb->update( $table, array( $col => $value ), $where );
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
+
+				if ( '' === $col_value ) {
+					continue;
+				}
+
+				$value = $replacer->run( $col_value );
+
+				if ( $value === $col_value ) {
+					continue;
+				}
+
+				if ( $this->log_handle ) {
+					$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
+					$replacer->clear_log_data();
+				}
+
+				if ( $this->dry_run ) {
+					$count++;
+				} else {
+					$where = array();
+					foreach ( (array) $keys as $k => $v ) {
+						$where[ $k ] = $v;
+					}
+
+					$count += $wpdb->update( $table, array( $col => $value ), $where );
+				}
 			}
 		}
 
