@@ -529,21 +529,25 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$count    = 0;
 		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
 
-		$table_sql        = self::esc_sql_ident( $table );
-		$col_sql          = self::esc_sql_ident( $col );
-		$where            = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
-		$primary_keys_sql = implode( ',', self::esc_sql_ident( $primary_keys ) );
-		$order_by_keys = array_map(
+		$table_sql            = self::esc_sql_ident( $table );
+		$col_sql              = self::esc_sql_ident( $col );
+		$where                = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
+		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
+		$primary_keys_sql     = implode( ',', $escaped_primary_keys );
+		$order_by_keys        = array_map(
 			function( $key ) {
 				return "{$key} ASC";
 			},
-			$primary_keys
+			$escaped_primary_keys
 		);
-		$order_by_sql = "ORDER BY " . implode( ',', self::esc_sql_ident( $order_by_keys ) );
-		$limit = 1000;
-		$offset = 0;
+		$order_by_sql         = 'ORDER BY ' . implode( ',', $order_by_keys );
+		$limit                = 1000;
+		$offset               = 0;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+		// 2 errors:
+		// - WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+		// - WordPress.CodeAnalysis.AssignmentInCondition -- no reason to do copy-paste for a single valid assignment in while
+		// phpcs:ignore
 		while ( $rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where} {$order_by_sql} LIMIT {$limit} OFFSET {$offset}" ) ) {
 			foreach ( $rows as $keys ) {
 				$where_sql = '';
@@ -575,14 +579,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 				if ( $this->dry_run ) {
 					$count++;
 				} else {
-					$where = array();
+					$update_where = array();
 					foreach ( (array) $keys as $k => $v ) {
-						$where[ $k ] = $v;
+						$update_where[ $k ] = $v;
 					}
 
-					$count += $wpdb->update( $table, array( $col => $value ), $where );
+					$count += $wpdb->update( $table, array( $col => $value ), $update_where );
 				}
 			}
+
+			$offset += $limit;
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
