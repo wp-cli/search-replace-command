@@ -3,7 +3,7 @@ wp-cli/search-replace-command
 
 Searches/replaces strings in the database.
 
-[![Build Status](https://travis-ci.org/wp-cli/search-replace-command.svg?branch=master)](https://travis-ci.org/wp-cli/search-replace-command)
+
 
 Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contributing) | [Support](#support)
 
