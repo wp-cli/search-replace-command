@@ -1142,3 +1142,45 @@ Feature: Do global search/replace
       """
       Success:
       """
+
+  Scenario: Chunking works without skipping lines
+    Given a WP install
+    And a create_sql_file.sh file:
+      """
+      #!/bin/bash
+      echo "CREATE TABLE \`wp_123_test\` (\`key\` INT(5) UNSIGNED NOT NULL AUTO_INCREMENT, \`text\` TEXT, PRIMARY KEY (\`key\`) );" > test_db.sql
+      echo "INSERT INTO \`wp_123_test\` (\`text\`) VALUES" >> test_db.sql
+      index=1
+      while [[ $index -le 199 ]];
+      do
+        echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc')," >> test_db.sql
+        index=`expr $index + 1`
+      done
+        echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc');" >> test_db.sql
+      """
+    And I run `bash create_sql_file.sh`
+    And I run `wp db query "SOURCE test_db.sql;"`
+
+    When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
+    Then STDOUT should contain:
+      """
+      Success: 2000 replacements to be made.
+      """
+
+    When I run `wp search-replace 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
+    Then STDOUT should contain:
+      """
+      Success: Made 2000 replacements.
+      """
+
+    When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
+    Then STDOUT should contain:
+      """
+      Success: 0 replacements to be made.
+      """
+
+    When I run `wp search-replace 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """

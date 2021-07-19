@@ -1,5 +1,12 @@
 <?php
 
+use cli\Colors;
+use cli\Table;
+use WP_CLI\Iterators;
+use WP_CLI\SearchReplacer;
+use WP_CLI\Utils;
+use function cli\safe_substr;
+
 class Search_Replace_Command extends WP_CLI_Command {
 
 	private $dry_run;
@@ -15,8 +22,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $include_columns;
 	private $format;
 	private $report;
-	private $report_changed_only;
+	private $verbose;
 
+	private $report_changed_only;
 	private $log_handle         = null;
 	private $log_before_context = 40;
 	private $log_after_context  = 40;
@@ -167,24 +175,24 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$new                   = array_shift( $args );
 		$total                 = 0;
 		$report                = array();
-		$this->dry_run         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run' );
-		$php_only              = \WP_CLI\Utils\get_flag_value( $assoc_args, 'precise' );
-		$this->recurse_objects = \WP_CLI\Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
-		$this->verbose         = \WP_CLI\Utils\get_flag_value( $assoc_args, 'verbose' );
-		$this->format          = \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' );
-		$this->regex           = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex', false );
+		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run' );
+		$php_only              = Utils\get_flag_value( $assoc_args, 'precise' );
+		$this->recurse_objects = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
+		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose' );
+		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
+		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
 
 		if ( null !== $this->regex ) {
 			$default_regex_delimiter = false;
-			$this->regex_flags       = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-flags', false );
-			$this->regex_delimiter   = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-delimiter', '' );
+			$this->regex_flags       = Utils\get_flag_value( $assoc_args, 'regex-flags', false );
+			$this->regex_delimiter   = Utils\get_flag_value( $assoc_args, 'regex-delimiter', '' );
 			if ( '' === $this->regex_delimiter ) {
 				$this->regex_delimiter   = chr( 1 );
 				$default_regex_delimiter = true;
 			}
 		}
 
-		$regex_limit = \WP_CLI\Utils\get_flag_value( $assoc_args, 'regex-limit' );
+		$regex_limit = Utils\get_flag_value( $assoc_args, 'regex-limit' );
 		if ( null !== $regex_limit ) {
 			if ( ! preg_match( '/^(?:[0-9]+|-1)$/', $regex_limit ) || 0 === (int) $regex_limit ) {
 				WP_CLI::error( '`--regex-limit` expects a non-zero positive integer or -1.' );
@@ -215,16 +223,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		$this->skip_columns    = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
-		$this->skip_tables     = explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-tables' ) );
-		$this->include_columns = array_filter( explode( ',', \WP_CLI\Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
+		$this->skip_columns    = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
+		$this->skip_tables     = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-tables' ) );
+		$this->include_columns = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
 
 		if ( $old === $new && ! $this->regex ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
 			exit;
 		}
 
-		$export = \WP_CLI\Utils\get_flag_value( $assoc_args, 'export' );
+		$export = Utils\get_flag_value( $assoc_args, 'export' );
 		if ( null !== $export ) {
 			if ( $this->dry_run ) {
 				WP_CLI::error( 'You cannot supply --dry-run and --export at the same time.' );
@@ -239,7 +247,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					WP_CLI::error( sprintf( 'Unable to open export file "%s" for writing: %s.', $assoc_args['export'], $error['message'] ) );
 				}
 			}
-			$export_insert_size = WP_CLI\Utils\get_flag_value( $assoc_args, 'export_insert_size', 50 );
+			$export_insert_size = Utils\get_flag_value( $assoc_args, 'export_insert_size', 50 );
 			// phpcs:ignore WordPress.PHP.StrictComparisons.LooseComparison -- See the code, this is deliberate.
 			if ( (int) $export_insert_size == $export_insert_size && $export_insert_size > 0 ) {
 				$this->export_insert_size = $export_insert_size;
@@ -247,7 +255,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$php_only = true;
 		}
 
-		$log = \WP_CLI\Utils\get_flag_value( $assoc_args, 'log' );
+		$log = Utils\get_flag_value( $assoc_args, 'log' );
 		if ( null !== $log ) {
 			if ( true === $log || '-' === $log ) {
 				$this->log_handle = STDOUT;
@@ -259,12 +267,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 			}
 			if ( $this->log_handle ) {
-				$before_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'before_context' );
+				$before_context = Utils\get_flag_value( $assoc_args, 'before_context' );
 				if ( null !== $before_context && preg_match( '/^[0-9]+$/', $before_context ) ) {
 					$this->log_before_context = (int) $before_context;
 				}
 
-				$after_context = \WP_CLI\Utils\get_flag_value( $assoc_args, 'after_context' );
+				$after_context = Utils\get_flag_value( $assoc_args, 'after_context' );
 				if ( null !== $after_context && preg_match( '/^[0-9]+$/', $after_context ) ) {
 					$this->log_after_context = (int) $after_context;
 				}
@@ -297,14 +305,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 					);
 				}
 
-				$this->log_colors   = self::get_colors( $assoc_args, $default_log_colors );
+				$this->log_colors   = $this->get_colors( $assoc_args, $default_log_colors );
 				$this->log_encoding = 0 === strpos( $wpdb->charset, 'utf8' ) ? 'UTF-8' : false;
 			}
 		}
 
-		$this->report = \WP_CLI\Utils\get_flag_value( $assoc_args, 'report', true );
+		$this->report = Utils\get_flag_value( $assoc_args, 'report', true );
 		// Defaults to true if logging, else defaults to false.
-		$this->report_changed_only = \WP_CLI\Utils\get_flag_value( $assoc_args, 'report-changed-only', null !== $this->log_handle );
+		$this->report_changed_only = Utils\get_flag_value( $assoc_args, 'report-changed-only', null !== $this->log_handle );
 
 		if ( $this->regex_flags ) {
 			$php_only = true;
@@ -314,7 +322,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->skip_columns[] = 'user_pass';
 
 		// Get table names based on leftover $args or supplied $assoc_args
-		$tables = \WP_CLI\Utils\wp_get_table_names( $args, $assoc_args );
+		$tables = Utils\wp_get_table_names( $args, $assoc_args );
 
 		foreach ( $tables as $table ) {
 
@@ -418,7 +426,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		if ( $this->report && ! empty( $report ) ) {
-			$table = new \cli\Table();
+			$table = new Table();
 			$table->setHeaders( array( 'Table', 'Column', 'Replacements', 'Type' ) );
 			$table->setRows( $report );
 			$table->display();
@@ -429,7 +437,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$success_message = 1 === $total ? "Made 1 replacement and exported to {$assoc_args['export']}." : "Made {$total} replacements and exported to {$assoc_args['export']}.";
 			} else {
 				$success_message = 1 === $total ? 'Made 1 replacement.' : "Made $total replacements.";
-				if ( $total && 'Default' !== WP_CLI\Utils\wp_get_cache_type() ) {
+				if ( $total && 'Default' !== Utils\wp_get_cache_type() ) {
 					$success_message .= ' Please remember to flush your persistent object cache with `wp cache flush`.';
 				}
 			}
@@ -450,7 +458,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size,
 		);
 
-		$replacer   = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
+		$replacer   = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
 		$col_counts = array_fill_keys( $all_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
@@ -458,7 +466,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		$rows = array();
-		foreach ( new \WP_CLI\Iterators\Table( $args ) as $i => $row ) {
+		foreach ( new Iterators\Table( $args ) as $i => $row ) {
 			$row_fields = array();
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
@@ -527,7 +535,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		global $wpdb;
 
 		$count    = 0;
-		$replacer = new \WP_CLI\SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
+		$replacer = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
 
 		$table_sql            = self::esc_sql_ident( $table );
 		$col_sql              = self::esc_sql_ident( $col );
@@ -535,7 +543,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
 		$primary_keys_sql     = implode( ',', $escaped_primary_keys );
 		$order_by_keys        = array_map(
-			function( $key ) {
+			static function ( $key ) {
 				return "{$key} ASC";
 			},
 			$escaped_primary_keys
@@ -543,6 +551,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$order_by_sql         = 'ORDER BY ' . implode( ',', $order_by_keys );
 		$limit                = 1000;
 		$offset               = 0;
+
+		// Updates have to be deferred to after the chunking is completed, as
+		// the offset will otherwise not work correctly.
+		$updates = [];
 
 		// 2 errors:
 		// - WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
@@ -552,7 +564,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $rows as $keys ) {
 				$where_sql = '';
 				foreach ( (array) $keys as $k => $v ) {
-					if ( strlen( $where_sql ) ) {
+					if ( '' !== $where_sql ) {
 						$where_sql .= ' AND ';
 					}
 					$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
@@ -576,19 +588,22 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$replacer->clear_log_data();
 				}
 
-				if ( $this->dry_run ) {
-					$count++;
-				} else {
+				$count++;
+				if ( ! $this->dry_run ) {
 					$update_where = array();
 					foreach ( (array) $keys as $k => $v ) {
 						$update_where[ $k ] = $v;
 					}
 
-					$count += $wpdb->update( $table, array( $col => $value ), $update_where );
+					$updates[] = [ $table, array( $col => $value ), $update_where ];
 				}
 			}
 
 			$offset += $limit;
+		}
+
+		foreach ( $updates as $update ) {
+			$wpdb->update( ...$update );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -728,7 +743,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @return string|array An escaped string if given a string, or an array of escaped strings if given an array of strings.
 	 */
 	private static function esc_sql_ident( $idents ) {
-		$backtick = function ( $v ) {
+		$backtick = static function ( $v ) {
 			// Escape any backticks in the identifier by doubling.
 			return '`' . str_replace( '`', '``', $v ) . '`';
 		};
@@ -745,7 +760,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @return string|array A quoted string if given a string, or an array of quoted strings if given an array of strings.
 	 */
 	private static function esc_sql_value( $values ) {
-		$quote = function ( $v ) {
+		$quote = static function ( $v ) {
 			// Don't quote integer values to avoid MySQL's implicit type conversion.
 			if ( preg_match( '/^[+-]?[0-9]{1,20}$/', $v ) ) { // MySQL BIGINT UNSIGNED max 18446744073709551615 (20 digits).
 				return esc_sql( $v );
@@ -772,18 +787,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private function get_colors( $assoc_args, $colors ) {
 		$color_reset = WP_CLI::colorize( '%n' );
 
-		$color_code_callback = function ( $v ) {
+		$color_code_callback = static function ( $v ) {
 			return substr( $v, 1 );
 		};
 
-		$color_codes = array_keys( \cli\Colors::getColors() );
+		$color_codes = array_keys( Colors::getColors() );
 		$color_codes = array_map( $color_code_callback, $color_codes );
 		$color_codes = implode( '', $color_codes );
 
 		$color_codes_regex = '/^(?:%[' . $color_codes . '])*$/';
 
 		foreach ( array_keys( $colors ) as $color_col ) {
-			$col_color_flag = \WP_CLI\Utils\get_flag_value( $assoc_args, $color_col . '_color' );
+			$col_color_flag = Utils\get_flag_value( $assoc_args, $color_col . '_color' );
 			if ( null !== $col_color_flag ) {
 				if ( ! preg_match( $color_codes_regex, $col_color_flag, $matches ) ) {
 					WP_CLI::warning( "Unrecognized percent color code '$col_color_flag' for '{$color_col}_color'." );
@@ -891,12 +906,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$new_matches = array();
 		$new_data    = preg_replace_callback(
 			$search_regex,
-			function ( $matches ) use ( $old_matches, $new, $is_regex, &$new_matches, &$i, &$diff ) {
+			static function ( $matches ) use ( $old_matches, $new, $is_regex, &$new_matches, &$i, &$diff ) {
 				if ( $is_regex ) {
 					// Sub in any back references, "$1", "\2" etc, in the replacement string.
 					$new = preg_replace_callback(
 						'/(?<!\\\\)(?:\\\\\\\\)*((?:\\\\|\\$)[0-9]{1,2}|\\${[0-9]{1,2}\\})/',
-						function ( $m ) use ( $matches ) {
+						static function ( $m ) use ( $matches ) {
 							$idx = (int) str_replace( array( '\\', '$', '{', '}' ), '', $m[0] );
 							return isset( $matches[ $idx ] ) ? $matches[ $idx ] : '';
 						},
@@ -939,14 +954,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			// Offsets are in bytes, so need to use `strlen()` and `substr()` before using `safe_substr()`.
 			if ( $this->log_before_context && $old_offset && ! $append_next ) {
-				$old_before = \cli\safe_substr( substr( $old_data, $last_old_offset, $old_offset - $last_old_offset ), -$this->log_before_context, null /*length*/, false /*is_width*/, $encoding );
-				$new_before = \cli\safe_substr( substr( $new_data, $last_new_offset, $new_offset - $last_new_offset ), -$this->log_before_context, null /*length*/, false /*is_width*/, $encoding );
+				$old_before = safe_substr( substr( $old_data, $last_old_offset, $old_offset - $last_old_offset ), -$this->log_before_context, null /*length*/, false /*is_width*/, $encoding );
+				$new_before = safe_substr( substr( $new_data, $last_new_offset, $new_offset - $last_new_offset ), -$this->log_before_context, null /*length*/, false /*is_width*/, $encoding );
 			}
 			if ( $this->log_after_context ) {
 				$old_end_offset = $old_offset + strlen( $old_match );
 				$new_end_offset = $new_offset + strlen( $new_match );
-				$old_after      = \cli\safe_substr( substr( $old_data, $old_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
-				$new_after      = \cli\safe_substr( substr( $new_data, $new_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
+				$old_after      = safe_substr( substr( $old_data, $old_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
+				$new_after      = safe_substr( substr( $new_data, $new_end_offset ), 0, $this->log_after_context, false /*is_width*/, $encoding );
 				// To lessen context duplication in output, shorten the after context if it overlaps with the next match.
 				if ( $i + 1 < $match_cnt && $old_end_offset + strlen( $old_after ) > $old_matches[0][ $i + 1 ][1] ) {
 					$old_after       = substr( $old_after, 0, $old_matches[0][ $i + 1 ][1] - $old_end_offset );
