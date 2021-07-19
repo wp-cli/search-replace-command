@@ -552,6 +552,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$limit                = 1000;
 		$offset               = 0;
 
+		// Updates have to be deferred to after the chunking is completed, as
+		// the offset will otherwise not work correctly.
+		$updates = [];
+
 		// 2 errors:
 		// - WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 		// - WordPress.CodeAnalysis.AssignmentInCondition -- no reason to do copy-paste for a single valid assignment in while
@@ -560,7 +564,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $rows as $keys ) {
 				$where_sql = '';
 				foreach ( (array) $keys as $k => $v ) {
-					if ( $where_sql !== '' ) {
+					if ( '' !== $where_sql ) {
 						$where_sql .= ' AND ';
 					}
 					$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
@@ -584,19 +588,22 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$replacer->clear_log_data();
 				}
 
-				if ( $this->dry_run ) {
-					$count++;
-				} else {
+				$count++;
+				if ( ! $this->dry_run ) {
 					$update_where = array();
 					foreach ( (array) $keys as $k => $v ) {
 						$update_where[ $k ] = $v;
 					}
 
-					$count += $wpdb->update( $table, array( $col => $value ), $update_where );
+					$updates[] = [ $table, array( $col => $value ), $update_where ];
 				}
 			}
 
 			$offset += $limit;
+		}
+
+		foreach ( $updates as $update ) {
+			$wpdb->update( ...$update );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {

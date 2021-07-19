@@ -1151,7 +1151,7 @@ Feature: Do global search/replace
       echo "CREATE TABLE \`wp_123_test\` (\`key\` INT(5) UNSIGNED NOT NULL AUTO_INCREMENT, \`text\` TEXT, PRIMARY KEY (\`key\`) );" > test_db.sql
       echo "INSERT INTO \`wp_123_test\` (\`text\`) VALUES" >> test_db.sql
       index=1
-      while [[ $index -le 999 ]];
+      while [[ $index -le 199 ]];
       do
         echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc')," >> test_db.sql
         index=`expr $index + 1`
@@ -1164,13 +1164,13 @@ Feature: Do global search/replace
     When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
     Then STDOUT should contain:
       """
-      Success: 10000 replacements to be made.
+      Success: 2000 replacements to be made.
       """
 
     When I run `wp search-replace 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
     Then STDOUT should contain:
       """
-      Success: Made 10000 replacements.
+      Success: Made 2000 replacements.
       """
 
     When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
