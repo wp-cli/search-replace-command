@@ -728,7 +728,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @return string|array An escaped string if given a string, or an array of escaped strings if given an array of strings.
 	 */
 	private static function esc_sql_ident( $idents ) {
-		$backtick = function ( $v ) {
+		$backtick = static function ( $v ) {
 			// Escape any backticks in the identifier by doubling.
 			return '`' . str_replace( '`', '``', $v ) . '`';
 		};
@@ -745,7 +745,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @return string|array A quoted string if given a string, or an array of quoted strings if given an array of strings.
 	 */
 	private static function esc_sql_value( $values ) {
-		$quote = function ( $v ) {
+		$quote = static function ( $v ) {
 			// Don't quote integer values to avoid MySQL's implicit type conversion.
 			if ( preg_match( '/^[+-]?[0-9]{1,20}$/', $v ) ) { // MySQL BIGINT UNSIGNED max 18446744073709551615 (20 digits).
 				return esc_sql( $v );
@@ -772,7 +772,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private function get_colors( $assoc_args, $colors ) {
 		$color_reset = WP_CLI::colorize( '%n' );
 
-		$color_code_callback = function ( $v ) {
+		$color_code_callback = static function ( $v ) {
 			return substr( $v, 1 );
 		};
 
@@ -891,12 +891,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$new_matches = array();
 		$new_data    = preg_replace_callback(
 			$search_regex,
-			function ( $matches ) use ( $old_matches, $new, $is_regex, &$new_matches, &$i, &$diff ) {
+			static function ( $matches ) use ( $old_matches, $new, $is_regex, &$new_matches, &$i, &$diff ) {
 				if ( $is_regex ) {
 					// Sub in any back references, "$1", "\2" etc, in the replacement string.
 					$new = preg_replace_callback(
 						'/(?<!\\\\)(?:\\\\\\\\)*((?:\\\\|\\$)[0-9]{1,2}|\\${[0-9]{1,2}\\})/',
-						function ( $m ) use ( $matches ) {
+						static function ( $m ) use ( $matches ) {
 							$idx = (int) str_replace( array( '\\', '$', '{', '}' ), '', $m[0] );
 							return isset( $matches[ $idx ] ) ? $matches[ $idx ] : '';
 						},
