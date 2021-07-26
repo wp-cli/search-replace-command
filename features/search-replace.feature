@@ -958,11 +958,11 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     When I run `SHELL_PIPE=0 wp search-replace WordPress WP --dry-run --log`
-    Then STDOUT should contain:
+    Then STDOUT should strictly contain:
       """
       [34;1mwp_options.option_value:
       """
-    And STDOUT should contain:
+    And STDOUT should strictly contain:
       """
       [31;1m< [0mJust another [31;1mWordPress[0m site
       [32;1m> [0mJust another [32;1mWP[0m site
@@ -970,11 +970,11 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     When I run `SHELL_PIPE=0 WP_CLI_SEARCH_REPLACE_LOG_COLORS='%b,%r,%g' wp search-replace WordPress WP --dry-run --log`
-    Then STDOUT should contain:
+    Then STDOUT should strictly contain:
       """
       [34mwp_options.option_value:
       """
-    And STDOUT should contain:
+    And STDOUT should strictly contain:
       """
       [31m< [0mJust another [31mWordPress[0m site
       [32m> [0mJust another [32mWP[0m site
@@ -986,11 +986,11 @@ Feature: Do global search/replace
       """
       wp_options.option_value
       """
-    And the replace.log file should contain:
+    And the replace.log file should strictly contain:
       """
       [34mwp_options.option_value:
       """
-    And the replace.log file should contain:
+    And the replace.log file should strictly contain:
       """
       [31m< [0mJust another [31mWordPress[0m site
       [32m> [0mJust another [32mWP[0m site
