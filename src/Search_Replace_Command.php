@@ -223,9 +223,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		$this->skip_columns    = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns' ) );
-		$this->skip_tables     = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-tables' ) );
-		$this->include_columns = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'include-columns' ) ) );
+		$this->skip_columns    = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns', '' ) );
+		$this->skip_tables     = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-tables', '' ) );
+		$this->include_columns = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'include-columns', '' ) ) );
 
 		if ( $old === $new && ! $this->regex ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
