@@ -178,6 +178,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 	public function __invoke( $args, $assoc_args ) {
 		global $wpdb;
 
+		if ( isset( $assoc_args['old'] ) || isset( $assoc_args['new'] ) ) {
+			foreach( ['old', 'new' ] as $argument ) {
+				if ( ! isset( $assoc_args[ $argument ] ) ) {
+					WP_CLI::error( "Argument --{$argument} needs to be provided." );
+					exit;
+				}
+			}
+		}
+
 		$old = empty( $assoc_args['old'] ) ? array_shift( $args ) : $assoc_args['old'];
 		$new = empty( $assoc_args['new'] ) ? array_shift( $args ) : $assoc_args['new'];
 
