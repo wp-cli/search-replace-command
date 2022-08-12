@@ -929,6 +929,7 @@ Feature: Do global search/replace
 
   Scenario: Logging with prefixes and custom colors
     Given a WP install
+    And I run `wp option set blogdescription 'Just another WordPress site'`
 
     When I run `WP_CLI_SEARCH_REPLACE_LOG_PREFIXES='- ,+ ' wp search-replace Just Yet --dry-run --log`
     Then STDOUT should contain:
