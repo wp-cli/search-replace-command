@@ -83,7 +83,13 @@ class SearchReplacer {
 				}
 			}
 
+			// The error suppression operator is not enough in some cases, so we disable
+			// reporting of notices and warnings as well.
+			$error_reporting = error_reporting();
+			error_reporting( $error_reporting & ~E_NOTICE & ~E_WARNING );
 			$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
+			error_reporting( $error_reporting );
+
 			if ( false !== $unserialized ) {
 				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1 );
 			} elseif ( is_array( $data ) ) {
