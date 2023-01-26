@@ -537,9 +537,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$count    = 0;
 		$replacer = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
 
-		$table_sql            = self::esc_sql_ident( $table );
-		$col_sql              = self::esc_sql_ident( $col );
-		$where                = $this->regex ? '' : " WHERE $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
+		$table_sql = self::esc_sql_ident( $table );
+		$col_sql   = self::esc_sql_ident( $col );
+
+		$base_key_condition = '';
+		$where_key          = '';
+		if ( ! $this->regex ) {
+			$base_key_condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
+			$where_key          = "WHERE $base_key_condition";
+		}
+
 		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
 		$primary_keys_sql     = implode( ',', $escaped_primary_keys );
 		$order_by_keys        = array_map(
@@ -550,17 +557,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		);
 		$order_by_sql         = 'ORDER BY ' . implode( ',', $order_by_keys );
 		$limit                = 1000;
-		$offset               = 0;
-
-		// Updates have to be deferred to after the chunking is completed, as
-		// the offset will otherwise not work correctly.
-		$updates = [];
 
 		// 2 errors:
 		// - WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 		// - WordPress.CodeAnalysis.AssignmentInCondition -- no reason to do copy-paste for a single valid assignment in while
 		// phpcs:ignore
-		while ( $rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where} {$order_by_sql} LIMIT {$limit} OFFSET {$offset}" ) ) {
+		while ( $rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where_key} {$order_by_sql} LIMIT {$limit}" ) ) {
 			foreach ( $rows as $keys ) {
 				$where_sql = '';
 				foreach ( (array) $keys as $k => $v ) {
@@ -595,15 +597,22 @@ class Search_Replace_Command extends WP_CLI_Command {
 						$update_where[ $k ] = $v;
 					}
 
-					$updates[] = [ $table, array( $col => $value ), $update_where ];
+					$wpdb->update( $table, [ $col => $value ], $update_where );
 				}
 			}
 
-			$offset += $limit;
-		}
-
-		foreach ( $updates as $update ) {
-			$wpdb->update( ...$update );
+			// Because we are ordering by primary keys from least to greatest,
+			// we can exclude previous chunks from consideration by adding greater-than conditions
+			// to insist the next chunk's keys must be greater than the last of this chunk's keys.
+			$last_keys            = end( $rows );
+			$where_key_conditions = array();
+			if ( $base_key_condition ) {
+				$where_key_conditions[] = $base_key_condition;
+			}
+			foreach ( (array) $last_keys as $k => $v ) {
+				$where_key_conditions[] = self::esc_sql_ident( $k ) . ' > ' . self::esc_sql_value( $v );
+			}
+			$where_key = 'WHERE ' . implode( 'AND', $where_key_conditions );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
