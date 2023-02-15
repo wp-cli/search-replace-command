@@ -712,7 +712,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 	private static function is_text_col( $type ) {
 		foreach ( array( 'text', 'varchar' ) as $token ) {
-			if ( false !== strpos( $type, $token ) ) {
+			if ( false !== stripos( $type, $token ) ) {
 				return true;
 			}
 		}
