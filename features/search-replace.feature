@@ -396,11 +396,16 @@ Feature: Do global search/replace
       https://example.com
       """
 
+    # NOTE: The preg_match() error message is a substring of the actual message that matches across supported PHP versions.
+    # In PHP 8.2, the error message changed from
+    #   "preg_match(): Delimiter must not be alphanumeric or backslash."
+    # to
+    #   "preg_match(): Delimiter must not be alphanumeric, backslash, or NUL"
     When I try `wp search-replace 'HTTPS://EXAMPLE.COM' 'https://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
-    Then STDERR should be:
+    Then STDERR should contain:
       """
       Error: The regex '1HTTPS://EXAMPLE.COM1i' fails.
-      preg_match(): Delimiter must not be alphanumeric or backslash.
+      preg_match(): Delimiter must not be alphanumeric
       """
     And the return code should be 1
 
