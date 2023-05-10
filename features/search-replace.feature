@@ -396,6 +396,19 @@ Feature: Do global search/replace
       https://example.com
       """
 
+    # NOTE: The preg_match() error message is a substring of the actual message that matches across supported PHP versions.
+    # In PHP 8.2, the error message changed from
+    #   "preg_match(): Delimiter must not be alphanumeric or backslash."
+    # to
+    #   "preg_match(): Delimiter must not be alphanumeric, backslash, or NUL"
+    When I try `wp search-replace 'HTTPS://EXAMPLE.COM' 'https://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
+    Then STDERR should contain:
+      """
+      Error: The regex '1HTTPS://EXAMPLE.COM1i' fails.
+      preg_match(): Delimiter must not be alphanumeric
+      """
+    And the return code should be 1
+
     When I try `wp search-replace 'regex error)' '' --regex`
     Then STDERR should contain:
       """
@@ -456,17 +469,6 @@ Feature: Do global search/replace
       """
     And the return code should be 1
 
-  Scenario: Search replace with an invalid regex delimiter
-    Given a WP install
-
-    # Exact preg_match() error changed with PHP 8.2+ (added NUL).
-    When I try `wp search-replace 'HTTPS://EXAMPLE.COM' 'https://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
-    Then STDERR should contain:
-      """
-      Error: The regex '1HTTPS://EXAMPLE.COM1i' fails.
-      preg_match(): Delimiter must not be alphanumeric
-      """
-    And the return code should be 1
   Scenario: Formatting as count-only
     Given a WP install
     And I run `wp option set foo 'ALPHA.example.com'`
