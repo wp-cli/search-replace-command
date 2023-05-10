@@ -396,14 +396,6 @@ Feature: Do global search/replace
       https://example.com
       """
 
-    When I try `wp search-replace 'HTTPS://EXAMPLE.COM' 'https://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
-    Then STDERR should be:
-      """
-      Error: The regex '1HTTPS://EXAMPLE.COM1i' fails.
-      preg_match(): Delimiter must not be alphanumeric or backslash.
-      """
-    And the return code should be 1
-
     When I try `wp search-replace 'regex error)' '' --regex`
     Then STDERR should contain:
       """
@@ -461,6 +453,30 @@ Feature: Do global search/replace
     And STDERR should contain:
       """
       at offset 11
+      """
+    And the return code should be 1
+
+  @less-than-php-8.2
+  Scenario: Search replace with an invalid regex delimiter
+    Given a WP install
+
+    When I try `wp search-replace 'HTTPS://EXAMPLE.COM' 'https://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
+    Then STDERR should be:
+      """
+      Error: The regex '1HTTPS://EXAMPLE.COM1i' fails.
+      preg_match(): Delimiter must not be alphanumeric or backslash.
+      """
+    And the return code should be 1
+
+  @require-php-8.2
+  Scenario: Search replace with an invalid regex delimiter
+    Given a WP install
+
+    When I try `wp search-replace 'HTTPS://EXAMPLE.COM' 'https://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='1'`
+    Then STDERR should be:
+      """
+      Error: The regex '1HTTPS://EXAMPLE.COM1i' fails.
+      preg_match(): Delimiter must not be alphanumeric, backslash, or NUL.
       """
     And the return code should be 1
 
