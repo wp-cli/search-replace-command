@@ -1163,6 +1163,15 @@ Feature: Do global search/replace
         index=`expr $index + 1`
       done
         echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc');" >> test_db.sql
+      echo "CREATE TABLE \`wp_123_test_multikey\` (\`key1\` INT(5) UNSIGNED NOT NULL AUTO_INCREMENT, \`key2\` INT(5) UNSIGNED NOT NULL, \`key3\` INT(5) UNSIGNED NOT NULL, \`text\` TEXT, PRIMARY KEY (\`key1\`,\`key2\`,\`key3\`) );" >> test_db.sql
+      echo "INSERT INTO \`wp_123_test_multikey\` (\`key2\`,\`key3\`,\`text\`) VALUES" >> test_db.sql
+      index=1
+      while [[ $index -le 204 ]];
+      do
+        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc')," >> test_db.sql
+        index=`expr $index + 1`
+      done
+        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc');" >> test_db.sql
       """
     And I run `bash create_sql_file.sh`
     And I run `wp db query "SOURCE test_db.sql;"`
@@ -1170,13 +1179,13 @@ Feature: Do global search/replace
     When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
     Then STDOUT should contain:
       """
-      Success: 2000 replacements to be made.
+      Success: 4050 replacements to be made.
       """
 
     When I run `wp search-replace 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
     Then STDOUT should contain:
       """
-      Success: Made 2000 replacements.
+      Success: Made 4050 replacements.
       """
 
     When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --precise`
@@ -1205,6 +1214,15 @@ Feature: Do global search/replace
         index=`expr $index + 1`
       done
         echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc');" >> test_db.sql
+      echo "CREATE TABLE \`wp_123_test_multikey\` (\`key1\` INT(5) UNSIGNED NOT NULL AUTO_INCREMENT, \`key2\` INT(5) UNSIGNED NOT NULL, \`key3\` INT(5) UNSIGNED NOT NULL, \`text\` TEXT, PRIMARY KEY (\`key1\`,\`key2\`,\`key3\`) );" >> test_db.sql
+      echo "INSERT INTO \`wp_123_test_multikey\` (\`key2\`,\`key3\`,\`text\`) VALUES" >> test_db.sql
+      index=1
+      while [[ $index -le 204 ]];
+      do
+        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc')," >> test_db.sql
+        index=`expr $index + 1`
+      done
+        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc');" >> test_db.sql
       """
     And I run `bash create_sql_file.sh`
     And I run `wp db query "SOURCE test_db.sql;"`
@@ -1212,13 +1230,13 @@ Feature: Do global search/replace
     When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --regex`
     Then STDOUT should contain:
       """
-      Success: 2000 replacements to be made.
+      Success: 4050 replacements to be made.
       """
 
     When I run `wp search-replace 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --regex`
     Then STDOUT should contain:
       """
-      Success: Made 2000 replacements.
+      Success: Made 4050 replacements.
       """
 
     When I run `wp search-replace --dry-run 'abc' 'def' --all-tables-with-prefix --skip-columns=guid,domain --regex`
