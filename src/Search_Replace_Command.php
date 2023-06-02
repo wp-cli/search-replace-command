@@ -604,15 +604,37 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// Because we are ordering by primary keys from least to greatest,
 			// we can exclude previous chunks from consideration by adding greater-than conditions
 			// to insist the next chunk's keys must be greater than the last of this chunk's keys.
-			$last_keys            = end( $rows );
+			$last_row            = end( $rows );
+			$next_key_conditions = array();
+
+			// NOTE: For a composite key (X, Y, Z), selecting the next rows requires the following conditions:
+			// ( X = lastX AND Y = lastY AND Z > lastZ ) OR
+			// ( X = lastX AND Y > lastY ) OR
+			// ( X > lastX )
+			for ( $last_key_index = count( $primary_keys ) - 1; $last_key_index >= 0; $last_key_index-- ) {
+				$next_key_subconditions = array();
+
+				for ( $i = 0; $i <= $last_key_index; $i++ ) {
+					$k = $primary_keys[ $i ];
+					$v = $last_row->{ $k };
+
+					if ( $i < $last_key_index ) {
+						$next_key_subconditions[] = self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
+					} else {
+						$next_key_subconditions[] = self::esc_sql_ident( $k ) . ' > ' . self::esc_sql_value( $v );
+					}
+				}
+
+				$next_key_conditions[] = '( ' . implode( ' AND ', $next_key_subconditions ) . ' )';
+			}
+
 			$where_key_conditions = array();
 			if ( $base_key_condition ) {
 				$where_key_conditions[] = $base_key_condition;
 			}
-			foreach ( (array) $last_keys as $k => $v ) {
-				$where_key_conditions[] = self::esc_sql_ident( $k ) . ' > ' . self::esc_sql_value( $v );
-			}
-			$where_key = 'WHERE ' . implode( 'AND', $where_key_conditions );
+			$where_key_conditions[] = '( ' . implode( ' OR ', $next_key_conditions ) . ' )';
+
+			$where_key = 'WHERE ' . implode( ' AND ', $where_key_conditions );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
