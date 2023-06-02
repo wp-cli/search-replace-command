@@ -612,7 +612,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( (array) $last_keys as $k => $v ) {
 				$where_key_conditions[] = self::esc_sql_ident( $k ) . ' > ' . self::esc_sql_value( $v );
 			}
-			$where_key = 'WHERE ' . implode( 'AND', $where_key_conditions );
+			$where_key = 'WHERE ' . implode( ' AND ', $where_key_conditions );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
