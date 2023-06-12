@@ -20,9 +20,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $skip_tables;
 	private $skip_columns;
 	private $include_columns;
+	private $where;
 	private $format;
 	private $report;
 	private $verbose;
+	private $callback;
 
 	private $report_changed_only;
 	private $log_handle         = null;
@@ -95,9 +97,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Perform the replacement on specific columns. Use commas to
 	 * specify multiple columns.
 	 *
+	 * [--where=<row-col-spec>]
+	 * : Perform the replacement on specific rows. Use semi-colon to
+	 * specify multiple specifictions.
+	 * <row-col-spec> format: <table>[,table]:[column,...]:quoted-SQL-condition
+	 *
+	 * [--revision]
+	 * : Default true.
+	 * If false, then identical to --where='posts::post_status="publish";postmeta::post_id IN (SELECT ID FROM {posts} WHERE post_status="publish")'
+	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) which is more thorough,
-	 * but slower.
+	 * but slower. If --callback is specified, --precise is inferred.
 	 *
 	 * [--recurse-objects]
 	 * : Enable recursing into objects to replace strings. Defaults to true;
@@ -105,6 +116,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--verbose]
 	 * : Prints rows to the console as they're updated.
+	 *
+	 * [--callback=<user-function>]
+	 * : Runs a user-specified function on each string that contains <old>. <new> is passed as the second argument and the regex string as the third if it exists: call_user_func( 'callback', $data, $new, $search_regex ).
 	 *
 	 * [--regex]
 	 * : Runs the search using a regular expression (without delimiters).
@@ -181,6 +195,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose' );
 		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
+		$this->callback        = Utils\get_flag_value( $assoc_args, 'callback', false );
 
 		if ( null !== $this->regex ) {
 			$default_regex_delimiter = false;
@@ -226,10 +241,29 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->skip_columns    = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns', '' ) );
 		$this->skip_tables     = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-tables', '' ) );
 		$this->include_columns = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'include-columns', '' ) ) );
+		$this->where           = $this->develop_where_specs( Utils\get_flag_value( $assoc_args, 'where' ) );
+		if ( isset( $assoc_args['revision'] ) && false === $assoc_args['revision'] ) {
+			$this->no_revision();
+		}
 
 		if ( $old === $new && ! $this->regex ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
 			exit;
+		}
+
+		if ( false !== $this->callback ) {
+			// We must load WordPress as the function may depend on it.
+			WP_CLI::get_runner()->load_wordpress();
+			if ( ! function_exists( $this->callback ) ) {
+				WP_CLI::error( 'The callback function does not exist. Skipping operation.' );
+			}
+		}
+
+		if ( $this->callback ) {
+			if ( false === $php_only ) {
+				WP_CLI::error( 'PHP is required to execute a callback function. --no-precise cannot be set.' );
+			}
+			$php_only = true;
 		}
 
 		$export = Utils\get_flag_value( $assoc_args, 'export' );
@@ -377,6 +411,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 					continue;
 				}
 
+				$clauses = $this->get_clauses( $table, $col );
+
 				if ( $this->verbose && 'count' !== $this->format ) {
 					$this->start_time = microtime( true );
 					WP_CLI::log( sprintf( 'Checking: %s.%s', $table, $col ) );
@@ -386,8 +422,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$col_sql          = self::esc_sql_ident( $col );
 					$wpdb->last_error = '';
 
+					$where = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
 					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-					$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
+					$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' $where LIMIT 1" );
 
 					// When the regex triggers an error, we should fall back to PHP
 					if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
@@ -397,10 +434,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 				if ( $php_only || $this->regex || null !== $serial_row ) {
 					$type  = 'PHP';
-					$count = $this->php_handle_col( $col, $primary_keys, $table, $old, $new );
+					$count = $this->php_handle_col( $col, $primary_keys, $table, $old, $new, $clauses );
 				} else {
 					$type  = 'SQL';
-					$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new );
+					$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new, $clauses );
 				}
 
 				if ( $this->report && ( $count || ! $this->report_changed_only ) ) {
@@ -458,7 +495,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size,
 		);
 
-		$replacer   = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
+		$replacer   = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit, $this->callback );
 		$col_counts = array_fill_keys( $all_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
@@ -471,7 +508,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
 				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
-					$new_value = $replacer->run( $value );
+					$new_value = $replacer->run(
+						$value,
+						false,
+						[
+							'table' => $table,
+							'col'   => $col,
+							'key'   => $primary_keys,
+						]
+					);
 					if ( $new_value !== $value ) {
 						$col_counts[ $col ]++;
 						$value = $new_value;
@@ -504,24 +549,26 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return array( $table_report, $total_rows );
 	}
 
-	private function sql_handle_col( $col, $primary_keys, $table, $old, $new ) {
+	private function sql_handle_col( $col, $primary_keys, $table, $old, $new, $clauses ) {
 		global $wpdb;
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );
 		if ( $this->dry_run ) {
 			if ( $this->log_handle ) {
-				$count = $this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+				$count = $this->log_sql_diff( $col, $primary_keys, $table, $old, $new, $clauses );
 			} else {
+				$where = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
+				$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s $where;", '%' . self::esc_like( $old ) . '%' ) );
 			}
 		} else {
 			if ( $this->log_handle ) {
-				$this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+				$this->log_sql_diff( $col, $primary_keys, $table, $old, $new, $clauses );
 			}
+			$where = $clauses ? ' WHERE ' . implode( ' AND ', $clauses ) : '';
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
+			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s) $where;", $old, $new ) );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -531,21 +578,22 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return $count;
 	}
 
-	private function php_handle_col( $col, $primary_keys, $table, $old, $new ) {
+	private function php_handle_col( $col, $primary_keys, $table, $old, $new, $additional_where ) {
 		global $wpdb;
 
 		$count    = 0;
-		$replacer = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
+		$where    = $additional_where;
+		$replacer = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit, $this->callback );
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );
 
 		$base_key_condition = '';
-		$where_key          = '';
 		if ( ! $this->regex ) {
 			$base_key_condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
-			$where_key          = "WHERE $base_key_condition";
+			$where[]            = $base_key_condition;
 		}
+		$where_key = $where_key ? ' WHERE ' . implode( ' AND ', $where_key ) : '';
 
 		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
 		$primary_keys_sql     = implode( ',', $escaped_primary_keys );
@@ -853,7 +901,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @param string $new New value to replace the old value with.
 	 * @return int Count of changed rows.
 	 */
-	private function log_sql_diff( $col, $primary_keys, $table, $old, $new ) {
+	private function log_sql_diff( $col, $primary_keys, $table, $old, $new, $clauses ) {
 		global $wpdb;
 		if ( $primary_keys ) {
 			$esc_primary_keys = implode( ', ', self::esc_sql_ident( $primary_keys ) );
@@ -864,9 +912,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );
+		$where_sql = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-		$results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}{$col_sql} FROM {$table_sql} WHERE {$col_sql} LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ), ARRAY_N );
+		$results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}{$col_sql} FROM {$table_sql} WHERE {$col_sql} LIKE BINARY %s {$where_sql}", '%' . self::esc_like( $old ) . '%' ), ARRAY_N );
 
 		if ( empty( $results ) ) {
 			return 0;
@@ -1044,4 +1093,35 @@ class Search_Replace_Command extends WP_CLI_Command {
 		fwrite( $this->log_handle, "{$table_column_id_log}\n{$old_log}\n{$new_log}\n" );
 	}
 
+	public function develop_where_specs( $str_specs ) {
+		global $wpdb;
+		$specs   = array_filter( explode( ';', $str_specs ) );
+		$clauses = [];
+		foreach ( $specs as $spec ) {
+			list( $tables, $cols, $conditions ) = explode( ':', $spec, 3 );
+			$tables                             = array_filter( explode( ',', $tables ) );
+			$cols                               = array_filter( explode( ',', $cols ) ) ? : [ '*' ];
+			foreach ( $tables as $table ) {
+				foreach ( $cols as $col ) {
+					$clauses[ empty( $wpdb->{$table} ) ? $table : $wpdb->{$table} ][ $col ][] = $conditions;
+				}
+			}
+		}
+		return $clauses;
+	}
+
+	public function no_revision() {
+		global $wpdb;
+		$this->where[ $wpdb->posts ]['*'][]    = self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' );
+		$this->where[ $wpdb->postmeta ]['*'][] = self::esc_sql_ident( 'post_id' ) . ' IN ( SELECT ID FROM ' . $wpdb->posts . ' WHERE ' . self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' ) . ')';
+	}
+
+	public function get_clauses( $table, $column = null ) {
+		return array_filter(
+			array_merge(
+				empty( $this->where[ $table ][ $column ] ) ? [] : $this->where[ $table ][ $column ],
+				empty( $this->where[ $table ]['*'] ) ? [] : $this->where[ $table ]['*']
+			)
+		);
+	}
 }
