@@ -85,17 +85,17 @@ Feature: Do global search/replace
   Scenario: Run on all tables matching string with wildcard
     Given a WP install
 
-    When I run `wp option set bar foo`
+    When I run `wp option set bar fooz`
     And I run `wp option get bar`
     Then STDOUT should be:
       """
-      foo
+      fooz
       """
 
     When I run `wp post create --post_title=bar --porcelain`
     Then save STDOUT as {POST_ID}
 
-    When I run `wp post meta add {POST_ID} foo bar`
+    When I run `wp post meta add {POST_ID} fooz bar`
     Then STDOUT should not be empty
 
     When I run `wp search-replace bar burrito wp_post\?`
@@ -113,7 +113,7 @@ Feature: Do global search/replace
       burrito
       """
 
-    When I run `wp post meta get {POST_ID} foo`
+    When I run `wp post meta get {POST_ID} fooz`
     Then STDOUT should be:
       """
       bar
@@ -122,17 +122,17 @@ Feature: Do global search/replace
     When I run `wp option get bar`
     Then STDOUT should be:
       """
-      foo
+      fooz
       """
 
-    When I try `wp search-replace foo burrito wp_opt\*on`
+    When I try `wp search-replace fooz burrito wp_opt\*on`
     Then STDERR should be:
       """
       Error: Couldn't find any tables matching: wp_opt*on
       """
     And the return code should be 1
 
-    When I run `wp search-replace foo burrito wp_opt\* wp_postme\*`
+    When I run `wp search-replace fooz burrito wp_opt\* wp_postme\*`
     Then STDOUT should be a table containing rows:
       | Table         | Column       | Replacements | Type |
       | wp_options    | option_value | 1            | PHP  |
