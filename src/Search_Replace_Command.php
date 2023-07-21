@@ -156,7 +156,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     $ wp search-replace '\[foo id="([0-9]+)"' '[bar id="\1"' --regex --regex-flags='i'
 	 *
 	 *     # Turn your production multisite database into a local dev database
-	 *     $ wp search-replace --url=example.com example.com example.test 'wp_*options' wp_blogs
+	 *     $ wp search-replace --url=example.com example.com example.test 'wp_*options' wp_blogs wp_site --network
 	 *
 	 *     # Search/replace to a SQL file without transforming the database
 	 *     $ wp search-replace foo bar --export=database.sql
