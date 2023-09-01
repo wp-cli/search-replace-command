@@ -248,8 +248,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 			}
 			$export_insert_size = Utils\get_flag_value( $assoc_args, 'export_insert_size', 50 );
-			// phpcs:ignore WordPress.PHP.StrictComparisons.LooseComparison -- See the code, this is deliberate.
-			if ( (int) $export_insert_size === $export_insert_size && $export_insert_size > 0 ) {
+			// phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual -- See the code, this is deliberate.
+			if ( (int) $export_insert_size == $export_insert_size && $export_insert_size > 0 ) {
 				$this->export_insert_size = $export_insert_size;
 			}
 			$php_only = true;
