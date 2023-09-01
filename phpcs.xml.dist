@@ -32,6 +32,8 @@
 		<!-- Can't be helped as WP itself uses these functions for the data being adjusted. -->
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize"/>
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize"/>
+		<!-- Allow $new as an argument to mitigate code churn -->
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.newFound" />
 	</rule>
 
 	<!--
@@ -68,7 +70,7 @@
 		 Related: https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards/issues/1623 -->
 	<rule ref="WordPress.NamingConventions.ValidVariableName">
 		<properties>
-			<property name="customPropertiesWhitelist" type="array">
+			<property name="allowed_custom_properties" type="array">
 				<element value="Key"/>
 				<element value="Field"/>
 				<element value="Type"/>
