@@ -32,6 +32,8 @@
 		<!-- Can't be helped as WP itself uses these functions for the data being adjusted. -->
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize"/>
 		<exclude name="WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize"/>
+		<!-- Allow $new as an argument to mitigate code churn -->
+		<exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames.newFound" />
 	</rule>
 
 	<!--
