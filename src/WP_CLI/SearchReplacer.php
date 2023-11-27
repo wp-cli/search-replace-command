@@ -89,7 +89,7 @@ class SearchReplacer {
 				$error_reporting = error_reporting();
 				error_reporting( $error_reporting & ~E_NOTICE & ~E_WARNING );
 				$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
-				error_reporting($error_reporting);
+				error_reporting( $error_reporting );
 			} catch ( \TypeError $e ) {
 				// catch incompatible deserialized object type conversions between different PHP versions and skip them
 				\WP_CLI::warning(
