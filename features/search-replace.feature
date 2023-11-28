@@ -1106,6 +1106,28 @@ Feature: Do global search/replace
       a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
 
+  # Regression test for https://github.com/wp-cli/search-replace-command/issues/191
+  Scenario: Deserialization for empty, type-hinted objects are handled gracefully
+
+    Given a WP install
+    And I run `wp option add cereal_isation 'O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}'`
+
+    When I try `wp search-replace current_field current_field1`
+    Then STDERR should contain:s
+      """
+      Warning: Skipping an inconvertible serialized object: "O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}", replacements might not be complete.
+      """
+    And STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+
+    When I run `wp option get cereal_isation`
+    Then STDOUT should contain:
+      """
+      O:13:"mysqli_result":5:{s:13:"current_field1";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}
+      """
+
   Scenario: Regex search/replace with `--regex-limit=1` option
     Given a WP install
     And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
