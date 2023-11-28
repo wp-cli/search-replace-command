@@ -1113,7 +1113,7 @@ Feature: Do global search/replace
     And I run `wp option add cereal_isation 'O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}'`
 
     When I try `wp search-replace current_field current_field1`
-    Then STDERR should contain:s
+    Then STDERR should contain:
       """
       Warning: Skipping an inconvertible serialized object: "O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}", replacements might not be complete.
       """
