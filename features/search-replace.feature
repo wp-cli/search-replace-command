@@ -1109,7 +1109,7 @@ Feature: Do global search/replace
   Scenario: Warn and ignore type-hinted objects that have some error in deserialization
 
     Given a WP install
-    And I run `wp option add cereal_isation 'O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}'`
+    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
 
     When I try `wp search-replace current_field current_field1`
     Then STDERR should contain:
@@ -1118,13 +1118,13 @@ Feature: Do global search/replace
       """
     And STDOUT should contain:
       """
-      Success: Made 1 replacement.
+      Success: Made 0 replacements.
       """
 
-    When I run `wp option get cereal_isation`
+    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation'"`
     Then STDOUT should contain:
       """
-      O:13:"mysqli_result":5:{s:13:"current_field1";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}
+      O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}
       """
 
   Scenario: Regex search/replace with `--regex-limit=1` option

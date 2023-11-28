@@ -99,7 +99,7 @@ class SearchReplacer {
 					)
 				);
 
-				$unserialized = false;
+				throw new Exception();
 			}
 
 			if ( false !== $unserialized ) {
