@@ -92,8 +92,6 @@ class SearchReplacer {
 				error_reporting( $error_reporting );
 
 			} catch ( \TypeError $e ) { // phpcs:ignore
-				// catch incompatible deserialized object type conversions between different PHP versions and skip them
-
 				\WP_CLI::warning(
 					sprintf(
 						'Skipping an inconvertible serialized object: "%s", replacements might not be complete.',
