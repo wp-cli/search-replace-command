@@ -1105,8 +1105,7 @@ Feature: Do global search/replace
       """
       a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
-
-  # Regression test for https://github.com/wp-cli/search-replace-command/issues/191
+    
   Scenario: Deserialization for empty, type-hinted objects are handled gracefully
 
     Given a WP install
