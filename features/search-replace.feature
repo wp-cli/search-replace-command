@@ -1110,21 +1110,22 @@ Feature: Do global search/replace
 
     Given a WP install
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
+    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
 
-    When I try `wp search-replace current_field current_field1`
+    When I try `wp search-replace mysqli_result stdClass`
     Then STDERR should contain:
       """
       Warning: Skipping an inconvertible serialized object: "O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}", replacements might not be complete.
       """
     And STDOUT should contain:
       """
-      Success: Made 0 replacements.
+      Success: Made 1 replacement.
       """
 
-    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation'"`
+    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'"`
     Then STDOUT should contain:
       """
-      O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}
+      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
       """
 
   Scenario: Regex search/replace with `--regex-limit=1` option
