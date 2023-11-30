@@ -119,7 +119,7 @@ class SearchReplacer {
 						)
 					);
 				} else {
-					foreach ( (array) $data as $key => $value ) {
+					foreach ( $data as $key => $value ) {
 						$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
 					}
 				}
