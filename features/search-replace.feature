@@ -1115,7 +1115,7 @@ Feature: Do global search/replace
     When I try `wp search-replace mysqli_result stdClass`
     Then STDERR should contain:
       """
-      Warning: Skipping an inconvertible serialized object of type "mysqli_result", replacements might not be complete. Reason: mysqli_result object is already closed.
+      Warning: WP_CLI\SearchReplacer::run_recursively(): Couldn't fetch mysqli_result in src/WP_CLI/SearchReplacer.php
       """
     And STDOUT should contain:
       """
