@@ -91,11 +91,12 @@ class SearchReplacer {
 				$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
 				error_reporting( $error_reporting );
 
-			} catch ( \TypeError $e ) { // phpcs:ignore
+			} catch ( \TypeError $exception ) { // phpcs:ignore
 				\WP_CLI::warning(
 					sprintf(
-						'Skipping an inconvertible serialized object: "%s", replacements might not be complete.',
-						$data
+						'Skipping an inconvertible serialized object: "%s", replacements might not be complete. Reason: %s.',
+						$data,
+						$exception->getMessage()
 					)
 				);
 
@@ -123,11 +124,12 @@ class SearchReplacer {
 						foreach ( $data as $key => $value ) {
 							$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
 						}
-					} catch ( \Error $e ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
+					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
 						\WP_CLI::warning(
 							sprintf(
-								'Skipping an inconvertible serialized object: "%s", replacements might not be complete.',
-								$data
+								'Skipping an inconvertible serialized object: "%s", replacements might not be complete. Reason: %s.',
+								$data,
+								$exception->getMessage()
 							)
 						);
 
@@ -165,7 +167,7 @@ class SearchReplacer {
 			if ( $serialised ) {
 				return serialize( $data );
 			}
-		} catch ( Exception $error ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Deliberally empty.
+		} catch ( Exception $exception ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Intentionally empty.
 
 		}
 

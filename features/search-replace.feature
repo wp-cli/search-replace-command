@@ -37,8 +37,8 @@ Feature: Do global search/replace
 
     When I run `wp search-replace foo bar --include-columns=post_content`
     Then STDOUT should be a table containing rows:
-    | Table    | Column       | Replacements | Type |
-    | wp_posts | post_content | 0            | SQL  |
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 0            | SQL  |
 
 
   Scenario: Multisite search/replace
@@ -100,8 +100,8 @@ Feature: Do global search/replace
 
     When I run `wp search-replace bar burrito wp_post\?`
     And STDOUT should be a table containing rows:
-      | Table         | Column      | Replacements | Type |
-      | wp_posts      | post_title  | 1            | SQL  |
+      | Table    | Column     | Replacements | Type |
+      | wp_posts | post_title | 1            | SQL  |
     And STDOUT should not contain:
       """
       wp_options
@@ -134,9 +134,9 @@ Feature: Do global search/replace
 
     When I run `wp search-replace fooz burrito wp_opt\* wp_postme\*`
     Then STDOUT should be a table containing rows:
-      | Table         | Column       | Replacements | Type |
-      | wp_options    | option_value | 1            | PHP  |
-      | wp_postmeta   | meta_key     | 1            | SQL  |
+      | Table       | Column       | Replacements | Type |
+      | wp_options  | option_value | 1            | PHP  |
+      | wp_postmeta | meta_key     | 1            | SQL  |
     And STDOUT should not contain:
       """
       wp_posts
@@ -213,23 +213,23 @@ Feature: Do global search/replace
 
     When I run `wp theme mod get header_image_data`
     Then STDOUT should be a table containing rows:
-      | key               | value                                               |
-      | header_image_data | {"url":"https:\/\/subdomain.example.com\/foo.jpg"}  |
+      | key               | value                                              |
+      | header_image_data | {"url":"https:\/\/subdomain.example.com\/foo.jpg"} |
 
     When I run `wp search-replace subdomain.example.com example.com --no-recurse-objects`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 0            | PHP        |
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 0            | PHP  |
 
     When I run `wp search-replace subdomain.example.com example.com`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 1            | PHP        |
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 1            | PHP  |
 
     When I run `wp theme mod get header_image_data`
     Then STDOUT should be a table containing rows:
-      | key               | value                                     |
-      | header_image_data | {"url":"https:\/\/example.com\/foo.jpg"}  |
+      | key               | value                                    |
+      | header_image_data | {"url":"https:\/\/example.com\/foo.jpg"} |
 
   Scenario: Search and replace with quoted strings
     Given a WP install
@@ -245,13 +245,13 @@ Feature: Do global search/replace
 
     When I run `wp search-replace '<a href="https://apple.com">Apple</a>' '<a href="https://google.com">Google</a>' --dry-run`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_posts   | post_content | 1            | SQL        |
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | SQL  |
 
     When I run `wp search-replace '<a href="https://apple.com">Apple</a>' '<a href="https://google.com">Google</a>'`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_posts   | post_content | 1            | SQL        |
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | SQL  |
 
     When I run `wp search-replace '<a href="https://google.com">Google</a>' '<a href="https://apple.com">Apple</a>' --dry-run`
     Then STDOUT should contain:
@@ -351,8 +351,8 @@ Feature: Do global search/replace
 
     When I run `wp search-replace 'EXAMPLE.com' 'BAXAMPLE.com' wp_options --regex`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 0            | PHP        |
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 0            | PHP  |
 
     When I run `wp option get home`
     Then STDOUT should be:
@@ -362,8 +362,8 @@ Feature: Do global search/replace
 
     When I run `wp search-replace 'EXAMPLE.com' 'BAXAMPLE.com' wp_options --regex --regex-flags=i`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 5            | PHP        |
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 5            | PHP  |
 
     When I run `wp option get home`
     Then STDOUT should be:
@@ -376,8 +376,8 @@ Feature: Do global search/replace
 
     When I run `wp search-replace 'HTTPS://EXAMPLE.COM' 'https://example.jp/' wp_options --regex --regex-flags=i --regex-delimiter='#'`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 2            | PHP        |
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 2            | PHP  |
 
     When I run `wp option get home`
     Then STDOUT should be:
@@ -387,8 +387,8 @@ Feature: Do global search/replace
 
     When I run `wp search-replace 'https://example.jp/' 'https://example.com/' wp_options --regex-delimiter='/'`
     Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 2            | PHP        |
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 2            | PHP  |
 
     When I run `wp option get home`
     Then STDOUT should be:
@@ -548,12 +548,12 @@ Feature: Do global search/replace
       Success: Made 3 replacements.
       """
     And STDOUT should be a table containing rows:
-    | Table          | Column       | Replacements | Type |
-    | wp_commentmeta | meta_key     | 0            | SQL  |
-    | wp_options     | option_value | 1            | PHP  |
-    | wp_postmeta    | meta_value   | 1            | SQL  |
-    | wp_posts       | post_title   | 1            | SQL  |
-    | wp_users       | display_name | 0            | SQL  |
+      | Table          | Column       | Replacements | Type |
+      | wp_commentmeta | meta_key     | 0            | SQL  |
+      | wp_options     | option_value | 1            | PHP  |
+      | wp_postmeta    | meta_value   | 1            | SQL  |
+      | wp_posts       | post_title   | 1            | SQL  |
+      | wp_users       | display_name | 0            | SQL  |
     And STDERR should be empty
 
     When I run `wp search-replace baz1 baz2 --report`
@@ -562,12 +562,12 @@ Feature: Do global search/replace
       Success: Made 3 replacements.
       """
     And STDOUT should be a table containing rows:
-    | Table          | Column       | Replacements | Type |
-    | wp_commentmeta | meta_key     | 0            | SQL  |
-    | wp_options     | option_value | 1            | PHP  |
-    | wp_postmeta    | meta_value   | 1            | SQL  |
-    | wp_posts       | post_title   | 1            | SQL  |
-    | wp_users       | display_name | 0            | SQL  |
+      | Table          | Column       | Replacements | Type |
+      | wp_commentmeta | meta_key     | 0            | SQL  |
+      | wp_options     | option_value | 1            | PHP  |
+      | wp_postmeta    | meta_value   | 1            | SQL  |
+      | wp_posts       | post_title   | 1            | SQL  |
+      | wp_users       | display_name | 0            | SQL  |
     And STDERR should be empty
 
     When I run `wp search-replace baz2 baz3 --no-report`
@@ -595,12 +595,12 @@ Feature: Do global search/replace
       Success: Made 3 replacements.
       """
     And STDOUT should be a table containing rows:
-    | Table          | Column       | Replacements | Type |
-    | wp_commentmeta | meta_key     | 0            | SQL  |
-    | wp_options     | option_value | 1            | PHP  |
-    | wp_postmeta    | meta_value   | 1            | SQL  |
-    | wp_posts       | post_title   | 1            | SQL  |
-    | wp_users       | display_name | 0            | SQL  |
+      | Table          | Column       | Replacements | Type |
+      | wp_commentmeta | meta_key     | 0            | SQL  |
+      | wp_options     | option_value | 1            | PHP  |
+      | wp_postmeta    | meta_value   | 1            | SQL  |
+      | wp_posts       | post_title   | 1            | SQL  |
+      | wp_users       | display_name | 0            | SQL  |
     And STDERR should be empty
 
     When I run `wp search-replace baz4 baz5 --report-changed-only`
@@ -609,10 +609,10 @@ Feature: Do global search/replace
       Success: Made 3 replacements.
       """
     And STDOUT should end with a table containing rows:
-    | Table          | Column       | Replacements | Type |
-    | wp_options     | option_value | 1            | PHP  |
-    | wp_postmeta    | meta_value   | 1            | SQL  |
-    | wp_posts       | post_title   | 1            | SQL  |
+      | Table       | Column       | Replacements | Type |
+      | wp_options  | option_value | 1            | PHP  |
+      | wp_postmeta | meta_value   | 1            | SQL  |
+      | wp_posts    | post_title   | 1            | SQL  |
     And STDOUT should not contain:
       """
       wp_commentmeta	meta_key	0	SQL
@@ -653,8 +653,8 @@ Feature: Do global search/replace
       Success: Made 0 replacements.
       """
     And STDOUT should end with a table containing rows:
-    | Table  | Column | Replacements | Type |
-    | no_key |        | skipped      |      |
+      | Table  | Column | Replacements | Type |
+      | no_key |        | skipped      |      |
     And STDERR should be empty
 
     And I run `wp search-replace foo bar no_key --report-changed-only --all-tables`
@@ -729,9 +729,9 @@ Feature: Do global search/replace
       Success: 2 replacements to be made.
       """
     And STDOUT should end with a table containing rows:
-    | Table    | Column       | Replacements | Type |
-    | wp_posts | post_content | 1            | SQL  |
-    | wp_posts | post_title   | 1            | SQL  |
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | SQL  |
+      | wp_posts | post_title   | 1            | SQL  |
 
     And STDOUT should contain:
       """
@@ -882,9 +882,9 @@ Feature: Do global search/replace
       Success: 2 replacements to be made.
       """
     And STDOUT should end with a table containing rows:
-    | Table    | Column       | Replacements | Type |
-    | wp_posts | post_content | 1            | PHP  |
-    | wp_posts | post_title   | 1            | PHP  |
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | PHP  |
+      | wp_posts | post_title   | 1            | PHP  |
 
     And STDOUT should contain:
       """
@@ -1037,11 +1037,11 @@ Feature: Do global search/replace
     And a test_db.sql file:
       """
       CREATE TABLE `wp_123_test` (
-        `name` varchar(50),
-        `value` varchar(5000),
-        `created_at` datetime NOT NULL,
-        `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`name`)
+      `name` varchar(50),
+      `value` varchar(5000),
+      `created_at` datetime NOT NULL,
+      `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (`name`)
       ) ENGINE=InnoDB;
       INSERT INTO `wp_123_test` VALUES ('test_val','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
       INSERT INTO `wp_123_test` VALUES ('123.','wp_123_test_value_X','2016-11-15 14:41:33','2016-11-15 21:41:33');
@@ -1114,7 +1114,7 @@ Feature: Do global search/replace
     When I try `wp search-replace mysqli_result stdClass`
     Then STDERR should contain:
       """
-      Warning: Skipping an inconvertible serialized object: "O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}", replacements might not be complete.
+      Warning: Skipping an inconvertible serialized object: "O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}", replacements might not be complete. Reason: Cannot assign null to property mysqli_result::$current_field of type int.
       """
     And STDOUT should contain:
       """
@@ -1199,19 +1199,19 @@ Feature: Do global search/replace
       index=1
       while [[ $index -le 199 ]];
       do
-        echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc')," >> test_db.sql
-        index=`expr $index + 1`
+      echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc')," >> test_db.sql
+      index=`expr $index + 1`
       done
-        echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc');" >> test_db.sql
+      echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc');" >> test_db.sql
       echo "CREATE TABLE \`wp_123_test_multikey\` (\`key1\` INT(5) UNSIGNED NOT NULL AUTO_INCREMENT, \`key2\` INT(5) UNSIGNED NOT NULL, \`key3\` INT(5) UNSIGNED NOT NULL, \`text\` TEXT, PRIMARY KEY (\`key1\`,\`key2\`,\`key3\`) );" >> test_db.sql
       echo "INSERT INTO \`wp_123_test_multikey\` (\`key2\`,\`key3\`,\`text\`) VALUES" >> test_db.sql
       index=1
       while [[ $index -le 204 ]];
       do
-        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc')," >> test_db.sql
-        index=`expr $index + 1`
+      echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc')," >> test_db.sql
+      index=`expr $index + 1`
       done
-        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc');" >> test_db.sql
+      echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc');" >> test_db.sql
       """
     And I run `bash create_sql_file.sh`
     And I run `wp db query "SOURCE test_db.sql;"`
@@ -1250,19 +1250,19 @@ Feature: Do global search/replace
       index=1
       while [[ $index -le 199 ]];
       do
-        echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc')," >> test_db.sql
-        index=`expr $index + 1`
+      echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc')," >> test_db.sql
+      index=`expr $index + 1`
       done
-        echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc');" >> test_db.sql
+      echo "('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc'),('abc');" >> test_db.sql
       echo "CREATE TABLE \`wp_123_test_multikey\` (\`key1\` INT(5) UNSIGNED NOT NULL AUTO_INCREMENT, \`key2\` INT(5) UNSIGNED NOT NULL, \`key3\` INT(5) UNSIGNED NOT NULL, \`text\` TEXT, PRIMARY KEY (\`key1\`,\`key2\`,\`key3\`) );" >> test_db.sql
       echo "INSERT INTO \`wp_123_test_multikey\` (\`key2\`,\`key3\`,\`text\`) VALUES" >> test_db.sql
       index=1
       while [[ $index -le 204 ]];
       do
-        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc')," >> test_db.sql
-        index=`expr $index + 1`
+      echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc')," >> test_db.sql
+      index=`expr $index + 1`
       done
-        echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc');" >> test_db.sql
+      echo "(0,0,'abc'),(1,1,'abc'),(2,2,'abc'),(3,3,'abc'),(4,4,'abc'),(5,0,'abc'),(6,1,'abc'),(7,2,'abc'),(8,3,'abc'),(9,4,'abc');" >> test_db.sql
       """
     And I run `bash create_sql_file.sh`
     And I run `wp db query "SOURCE test_db.sql;"`
