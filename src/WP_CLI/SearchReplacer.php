@@ -127,8 +127,8 @@ class SearchReplacer {
 					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
 						\WP_CLI::warning(
 							sprintf(
-								'Skipping an inconvertible serialized object: "%s", replacements might not be complete. Reason: %s.',
-								$data,
+								'Skipping an inconvertible serialized object of type "%s", replacements might not be complete. Reason: %s.',
+								is_object( $data ) ? get_class( $data ) : gettype( $data ),
 								$exception->getMessage()
 							)
 						);
