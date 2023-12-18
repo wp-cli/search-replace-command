@@ -133,7 +133,7 @@ class SearchReplacer {
 							)
 						);
 
-						throw new Exception();
+						throw new Exception( $exception->getMessage(), $exception->getCode(), $exception );
 					}
 				}
 			} elseif ( is_string( $data ) ) {

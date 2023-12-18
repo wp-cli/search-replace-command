@@ -1106,8 +1106,8 @@ Feature: Do global search/replace
       a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
 
-  @less-than-php-8.1
-  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP < 8.1)
+  @less-than-php-8.0
+  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP < 8.0)
     Given a WP install
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
@@ -1115,7 +1115,48 @@ Feature: Do global search/replace
     When I try `wp search-replace mysqli_result stdClass`
     Then STDERR should contain:
       """
-      Warning: Warning: Skipping an inconvertible serialized object of type "mysqli_result", replacements might not be complete. Reason: mysqli_result object is already closed.
+      Warning: Skipping an inconvertible serialized object of type "mysqli_result", replacements might not be complete. Reason: mysqli_result object is already closed.
+      """
+    And STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+
+    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'" --skip-column-names`
+    Then STDOUT should contain:
+      """
+      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
+      """
+    Then save STDOUT as {SERIALIZED_RESULT}
+    And a test_php.php file:
+      """
+      <?php print_r(unserialize('{SERIALIZED_RESULT}'));
+      """
+
+    When I try `wp eval-file test_php.php`
+    Then STDOUT should contain:
+      """
+      stdClass Object
+      """
+    Then STDOUT should contain:
+      """
+      [current_field] => 1
+      """
+    Then STDOUT should contain:
+      """
+      [field_count] => 2
+      """
+
+  @requires-php-8.0 @less-than-php-8.1
+  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP 8.0)
+    Given a WP install
+    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
+    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
+
+    When I try `wp search-replace mysqli_result stdClass`
+    Then STDERR should contain:
+      """
+      Warning: Skipping an inconvertible serialized object of type "mysqli_result", replacements might not be complete. Reason: mysqli_result object is already closed.
       """
     And STDOUT should contain:
       """
