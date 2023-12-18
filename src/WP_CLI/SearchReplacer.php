@@ -123,7 +123,7 @@ class SearchReplacer {
 						foreach ( $data as $key => $value ) {
 							$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
 						}
-					} catch ( \Error $e ) {
+					} catch ( \Error $e ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
 						\WP_CLI::warning(
 							sprintf(
 								'Skipping an inconvertible serialized object: "%s", replacements might not be complete.',
