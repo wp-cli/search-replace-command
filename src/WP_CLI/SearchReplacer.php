@@ -129,6 +129,9 @@ class SearchReplacer {
 							$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
 						}
 					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
+						// This error is thrown when the object that was unserialized cannot be iterated upon.
+						// The most notable reason is an empty `mysqli_result` object which is then considered to be "already closed".
+						// See https://github.com/wp-cli/search-replace-command/pull/192#discussion_r1412310179
 						\WP_CLI::warning(
 							sprintf(
 								'Skipping an inconvertible serialized object of type "%s", replacements might not be complete. Reason: %s.',
