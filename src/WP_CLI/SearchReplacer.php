@@ -91,7 +91,7 @@ class SearchReplacer {
 				$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
 				error_reporting( $error_reporting );
 
-			} catch ( \TypeError $exception ) { // phpcs:ignore
+			} catch ( \TypeError $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.typeerrorFound
 				\WP_CLI::warning(
 					sprintf(
 						'Skipping an inconvertible serialized object: "%s", replacements might not be complete. Reason: %s.',
