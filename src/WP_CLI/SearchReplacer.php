@@ -92,6 +92,10 @@ class SearchReplacer {
 				error_reporting( $error_reporting );
 
 			} catch ( \TypeError $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.typeerrorFound
+				// This type error is thrown when trying to unserialize a string that does not fit the
+				// type declarations of the properties it is supposed to fill.
+				// This type checking was introduced with PHP 8.1.
+				// See https://github.com/wp-cli/search-replace-command/issues/191
 				\WP_CLI::warning(
 					sprintf(
 						'Skipping an inconvertible serialized object: "%s", replacements might not be complete. Reason: %s.',
@@ -100,7 +104,7 @@ class SearchReplacer {
 					)
 				);
 
-				throw new Exception();
+				throw new Exception( $exception->getMessage(), $exception->getCode(), $exception );
 			}
 
 			if ( false !== $unserialized ) {
