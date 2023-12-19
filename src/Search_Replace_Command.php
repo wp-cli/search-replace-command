@@ -585,6 +585,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 					continue;
 				}
 
+				// In case a needed re-serialization was unsuccessful, we should not update the value,
+				// as this implies we hit an exception while processing.
+				if ( gettype( $value ) !== gettype( $col_value ) ) {
+					continue;
+				}
+
 				if ( $this->log_handle ) {
 					$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
 					$replacer->clear_log_data();
