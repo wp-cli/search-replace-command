@@ -1,5 +1,6 @@
 Feature: Search / replace with file export
 
+  @require-mysql
   Scenario: Search / replace export to STDOUT
     Given a WP install
     And I run `echo ' '`
@@ -76,6 +77,7 @@ Feature: Search / replace with file export
       https://example.net
       """
 
+  @require-mysql
   Scenario: Search / replace export to file
     Given a WP install
     And I run `wp post generate --count=100`
@@ -129,6 +131,7 @@ Feature: Search / replace with file export
       101
       """
 
+  @require-mysql
   Scenario: Search / replace export to file with verbosity
     Given a WP install
 
@@ -151,6 +154,7 @@ Feature: Search / replace with file export
       Error: You cannot supply --dry-run and --export at the same time.
       """
 
+  @require-mysql
   Scenario: Search / replace shouldn't affect primary key
     Given a WP install
     And I run `wp post create --post_title=foo --porcelain`
@@ -191,6 +195,7 @@ Feature: Search / replace with file export
       Error: Unable to open export file "foo/bar.sql" for writing:
       """
 
+  @require-mysql
   Scenario: Search / replace specific table
     Given a WP install
 
@@ -225,6 +230,7 @@ Feature: Search / replace with file export
       foo
       """
 
+  @require-mysql
   Scenario: Search / replace export should cater for field/table names that use reserved words or unusual characters
     Given a WP install
     # Unlike search-replace.features version, don't use `back``tick` column name as WP_CLI\Iterators\Table::build_fields() can't handle it.
@@ -268,6 +274,7 @@ Feature: Search / replace with file export
       """
     And STDERR should be empty
 
+  @require-mysql
   Scenario: Suppress report or only report changes on export to file
     Given a WP install
 
@@ -365,6 +372,7 @@ Feature: Search / replace with file export
       """
     And STDERR should be empty
 
+  @require-mysql
   Scenario: Search / replace should remove placeholder escape on export
     Given a WP install
     And I run `wp post create --post_title=test-remove-placeholder-escape% --porcelain`
@@ -380,6 +388,7 @@ Feature: Search / replace with file export
       'test-remove-placeholder-escape{'
       """
 
+  @require-mysql
   Scenario: NULLs exported as NULL and not null string
     Given a WP install
     And I run `wp db query "INSERT INTO wp_postmeta VALUES (9999, 9999, NULL, 'foo')"`
