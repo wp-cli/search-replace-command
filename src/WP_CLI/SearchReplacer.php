@@ -83,12 +83,29 @@ class SearchReplacer {
 				}
 			}
 
-			// The error suppression operator is not enough in some cases, so we disable
-			// reporting of notices and warnings as well.
-			$error_reporting = error_reporting();
-			error_reporting( $error_reporting & ~E_NOTICE & ~E_WARNING );
-			$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
-			error_reporting( $error_reporting );
+			try {
+				// The error suppression operator is not enough in some cases, so we disable
+				// reporting of notices and warnings as well.
+				$error_reporting = error_reporting();
+				error_reporting( $error_reporting & ~E_NOTICE & ~E_WARNING );
+				$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
+				error_reporting( $error_reporting );
+
+			} catch ( \TypeError $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.typeerrorFound
+				// This type error is thrown when trying to unserialize a string that does not fit the
+				// type declarations of the properties it is supposed to fill.
+				// This type checking was introduced with PHP 8.1.
+				// See https://github.com/wp-cli/search-replace-command/issues/191
+				\WP_CLI::warning(
+					sprintf(
+						'Skipping an inconvertible serialized object: "%s", replacements might not be complete. Reason: %s.',
+						$data,
+						$exception->getMessage()
+					)
+				);
+
+				throw new Exception( $exception->getMessage(), $exception->getCode(), $exception );
+			}
 
 			if ( false !== $unserialized ) {
 				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1 );
@@ -107,8 +124,23 @@ class SearchReplacer {
 						)
 					);
 				} else {
-					foreach ( $data as $key => $value ) {
-						$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+					try {
+						foreach ( $data as $key => $value ) {
+							$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+						}
+					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
+						// This error is thrown when the object that was unserialized cannot be iterated upon.
+						// The most notable reason is an empty `mysqli_result` object which is then considered to be "already closed".
+						// See https://github.com/wp-cli/search-replace-command/pull/192#discussion_r1412310179
+						\WP_CLI::warning(
+							sprintf(
+								'Skipping an inconvertible serialized object of type "%s", replacements might not be complete. Reason: %s.',
+								is_object( $data ) ? get_class( $data ) : gettype( $data ),
+								$exception->getMessage()
+							)
+						);
+
+						throw new Exception( $exception->getMessage(), $exception->getCode(), $exception );
 					}
 				}
 			} elseif ( is_string( $data ) ) {
@@ -142,7 +174,7 @@ class SearchReplacer {
 			if ( $serialised ) {
 				return serialize( $data );
 			}
-		} catch ( Exception $error ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Deliberally empty.
+		} catch ( Exception $exception ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Intentionally empty.
 
 		}
 
