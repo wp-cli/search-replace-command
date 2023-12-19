@@ -1147,7 +1147,7 @@ Feature: Do global search/replace
       [field_count] => 2
       """
 
-  @requires-php-8.0 @less-than-php-8.1
+  @require-php-8.0 @less-than-php-8.1
   Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP 8.0)
     Given a WP install
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
