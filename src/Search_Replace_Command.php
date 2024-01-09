@@ -31,6 +31,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $log_prefixes       = array( '< ', '> ' );
 	private $log_colors;
 	private $log_encoding;
+	private $start_time;
 
 	/**
 	 * Searches/replaces strings in the database.
