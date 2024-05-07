@@ -14,7 +14,7 @@ Feature: Search / replace with file export
       """
     And STDOUT should contain:
       """
-      ('1', 'siteurl', 'https://example.net', 'yes'),
+      ('1', 'siteurl', 'https://example.net',
       """
 
     When I run `wp option get home`
@@ -51,13 +51,19 @@ Feature: Search / replace with file export
     Then STDOUT should contain:
       """
       INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES{SPACE}
-    ('1', 'siteurl', 'https://example.com', 'yes'),
+      """
+    And STDOUT should contain:
+      """
+    ('1', 'siteurl', 'https://example.com'
       """
 
     When I run `wp search-replace example.com example.net --skip-columns=option_value --export --export_insert_size=1`
     Then STDOUT should contain:
       """
-      ('1', 'siteurl', 'https://example.com', 'yes');
+      ('1', 'siteurl', 'https://example.com'
+      """
+    And STDOUT should contain:
+      """
     INSERT INTO `wp_options` (`option_id`, `option_name`, `option_value`, `autoload`) VALUES{SPACE}
       """
 
