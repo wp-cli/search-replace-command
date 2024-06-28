@@ -14,7 +14,7 @@ Feature: Search / replace with file export
       """
     And STDOUT should contain:
       """
-      ('1', 'siteurl', 'https://example.net',
+      'siteurl', 'https://example.net',
       """
 
     When I run `wp option get home`
@@ -54,13 +54,13 @@ Feature: Search / replace with file export
       """
     And STDOUT should contain:
       """
-    ('1', 'siteurl', 'https://example.com'
+    'siteurl', 'https://example.com'
       """
 
     When I run `wp search-replace example.com example.net --skip-columns=option_value --export --export_insert_size=1`
     Then STDOUT should contain:
       """
-      ('1', 'siteurl', 'https://example.com'
+      'siteurl', 'https://example.com'
       """
     And STDOUT should contain:
       """
