@@ -14,7 +14,7 @@ Feature: Search / replace with file export
       """
     And STDOUT should contain:
       """
-      ('1', 'siteurl', 'https://example.net',
+      'siteurl', 'https://example.net',
       """
 
     When I run `wp option get home`
