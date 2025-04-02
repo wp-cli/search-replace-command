@@ -41,7 +41,6 @@ Feature: Do global search/replace
       | Table    | Column       | Replacements | Type |
       | wp_posts | post_content | 0            | SQL  |
 
-
   @require-mysql
   Scenario: Multisite search/replace
     Given a WP multisite install
@@ -104,7 +103,7 @@ Feature: Do global search/replace
     Then STDOUT should not be empty
 
     When I run `wp search-replace bar burrito wp_post\?`
-    And STDOUT should be a table containing rows:
+    Then STDOUT should be a table containing rows:
       | Table    | Column     | Replacements | Type |
       | wp_posts | post_title | 1            | SQL  |
     And STDOUT should not contain:
@@ -673,7 +672,7 @@ Feature: Do global search/replace
       | no_key |        | skipped      |      |
     And STDERR should be empty
 
-    And I run `wp search-replace foo bar no_key --report-changed-only --all-tables`
+    When I run `wp search-replace foo bar no_key --report-changed-only --all-tables`
     Then STDOUT should contain:
       """
       Success: Made 0 replacements.
@@ -817,8 +816,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     When I run `wp option set foobar '_bar1_ _bar1_12345678901234567890123456789012345678901234567890_bar1_ _bar1_1234567890123456789012345678901234567890'`
-
-    When I run `wp search-replace '_bar1_' '_baz1_' wp_options --log`
+    And I run `wp search-replace '_bar1_' '_baz1_' wp_options --log`
     Then STDOUT should contain:
       """
       < _bar1_ _bar1_1234567890123456789012345678901234567890 [...] 1234567890123456789012345678901234567890_bar1_ _bar1_1234567890123456789012345678901234567890
@@ -841,8 +839,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     When I run `wp option set foobar2 '12345678901234567890_bar2_1234567890_bar2_ _bar2_ _bar2_'`
-
-    When I run `wp search-replace '_bar2_' '_baz2baz2_' wp_options --log --before_context=10 --after_context=10`
+    And I run `wp search-replace '_bar2_' '_baz2baz2_' wp_options --log --before_context=10 --after_context=10`
     Then STDOUT should contain:
       """
       < 1234567890_bar2_1234567890 [...] 1234567890_bar2_ _bar2_ _bar2_
@@ -865,8 +862,7 @@ Feature: Do global search/replace
     And STDERR should be empty
 
     When I run `wp option set foobar3 '_bar3 _bar3 _bar3 _bar3'`
-
-    When I run `wp search-replace '_bar3' 'baz3' wp_options --log`
+    And I run `wp search-replace '_bar3' 'baz3' wp_options --log`
     Then STDOUT should contain:
       """
       < _bar3 _bar3 _bar3 _bar3
@@ -1148,7 +1144,7 @@ Feature: Do global search/replace
       """
       O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
       """
-    Then save STDOUT as {SERIALIZED_RESULT}
+    And save STDOUT as {SERIALIZED_RESULT}
     And a test_php.php file:
       """
       <?php print_r(unserialize('{SERIALIZED_RESULT}'));
@@ -1159,11 +1155,11 @@ Feature: Do global search/replace
       """
       stdClass Object
       """
-    Then STDOUT should contain:
+    And STDOUT should contain:
       """
       [current_field] => 1
       """
-    Then STDOUT should contain:
+    And STDOUT should contain:
       """
       [field_count] => 2
       """
@@ -1189,7 +1185,7 @@ Feature: Do global search/replace
       """
       O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
       """
-    Then save STDOUT as {SERIALIZED_RESULT}
+    And save STDOUT as {SERIALIZED_RESULT}
     And a test_php.php file:
       """
       <?php print_r(unserialize('{SERIALIZED_RESULT}'));
@@ -1200,11 +1196,11 @@ Feature: Do global search/replace
       """
       stdClass Object
       """
-    Then STDOUT should contain:
+    And STDOUT should contain:
       """
       [current_field] => 1
       """
-    Then STDOUT should contain:
+    And STDOUT should contain:
       """
       [field_count] => 2
       """
@@ -1230,7 +1226,7 @@ Feature: Do global search/replace
       """
       O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
       """
-    Then save STDOUT as {SERIALIZED_RESULT}
+    And save STDOUT as {SERIALIZED_RESULT}
     And a test_php.php file:
       """
       <?php print_r(unserialize('{SERIALIZED_RESULT}'));
@@ -1241,11 +1237,11 @@ Feature: Do global search/replace
       """
       stdClass Object
       """
-    Then STDOUT should contain:
+    And STDOUT should contain:
       """
       [current_field] => 1
       """
-    Then STDOUT should contain:
+    And STDOUT should contain:
       """
       [field_count] => 2
       """
