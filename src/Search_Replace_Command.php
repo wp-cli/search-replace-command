@@ -9,28 +9,114 @@ use function cli\safe_substr;
 
 class Search_Replace_Command extends WP_CLI_Command {
 
+	/**
+	 * @var bool
+	 */
 	private $dry_run;
+
+	/**
+	 * @var false|resource
+	 */
 	private $export_handle = false;
+
+	/**
+	 * @var int
+	 */
 	private $export_insert_size;
+
+	/**
+	 * @var bool
+	 */
 	private $recurse_objects;
+
+	/**
+	 * @var bool
+	 */
 	private $regex;
+
+	/**
+	 * @var string
+	 */
 	private $regex_flags;
+
+	/**
+	 * @var string
+	 */
 	private $regex_delimiter;
+
+	/**
+	 * @var int
+	 */
 	private $regex_limit = -1;
+
+	/**
+	 * @var string[]
+	 */
 	private $skip_tables;
+
+	/**
+	 * @var string[]
+	 */
 	private $skip_columns;
+
+	/**
+	 * @var string[]
+	 */
 	private $include_columns;
+
+	/**
+	 * @var string
+	 */
 	private $format;
+
+	/**
+	 * @var bool
+	 */
 	private $report;
+
+	/**
+	 * @var bool
+	 */
 	private $verbose;
 
+	/**
+	 * @var bool
+	 */
 	private $report_changed_only;
-	private $log_handle         = null;
+
+	/**
+	 * @var false|resource
+	 */
+	private $log_handle = null;
+
+	/**
+	 * @var int
+	 */
 	private $log_before_context = 40;
-	private $log_after_context  = 40;
-	private $log_prefixes       = array( '< ', '> ' );
+
+	/**
+	 * @var int
+	 */
+	private $log_after_context = 40;
+
+	/**
+	 * @var array{0: string, 1: string}
+	 */
+	private $log_prefixes = array( '< ', '> ' );
+
+	/**
+	 * @var array<string, array<mixed>>
+	 */
 	private $log_colors;
+
+	/**
+	 * @var string|false
+	 */
 	private $log_encoding;
+
+	/**
+	 * @var float
+	 */
 	private $start_time;
 
 	/**
@@ -169,6 +255,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     else
 	 *         wp search-replace 'http://example.com' 'http://example.test' --recurse-objects --skip-columns=guid --skip-tables=wp_users
 	 *     fi
+	 *
+	 * @param array<string> $args Positional arguments.
+	 * @param array{'dry-run'?: bool, 'network'?: bool, 'all-tables-with-prefix'?: bool, 'all-tables'?: bool, 'export'?: string, 'export_insert_size'?: string, 'skip-tables'?: string, 'skip-columns'?: string, 'include-columns'?: string, 'precise'?: bool, 'recurse-objects'?: bool, 'verbose'?: bool, 'regex'?: bool, 'regex-flags'?: string, 'regex-delimiter'?: string, 'regex-limit'?: string, 'format': string, 'report'?: bool, 'report-changed-only'?: bool, 'log'?: string, 'before_context'?: string, 'after_context'?: string} $assoc_args Associative arguments.
 	 */
 	public function __invoke( $args, $assoc_args ) {
 		global $wpdb;
@@ -176,17 +265,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$new                   = array_shift( $args );
 		$total                 = 0;
 		$report                = array();
-		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run' );
-		$php_only              = Utils\get_flag_value( $assoc_args, 'precise' );
+		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run', false );
+		$php_only              = Utils\get_flag_value( $assoc_args, 'precise', false );
 		$this->recurse_objects = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
-		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose' );
+		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose', false );
 		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
 
+		$default_regex_delimiter = false;
+
 		if ( null !== $this->regex ) {
-			$default_regex_delimiter = false;
-			$this->regex_flags       = Utils\get_flag_value( $assoc_args, 'regex-flags', false );
-			$this->regex_delimiter   = Utils\get_flag_value( $assoc_args, 'regex-delimiter', '' );
+			$this->regex_flags     = Utils\get_flag_value( $assoc_args, 'regex-flags', false );
+			$this->regex_delimiter = Utils\get_flag_value( $assoc_args, 'regex-delimiter', '' );
 			if ( '' === $this->regex_delimiter ) {
 				$this->regex_delimiter   = chr( 1 );
 				$default_regex_delimiter = true;
@@ -213,7 +303,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Preventing a warning when testing the regex.
 			if ( false === @preg_match( $search_regex, '' ) ) {
 				$error              = error_get_last();
-				$preg_error_message = ( ! empty( $error ) && array_key_exists( 'message', $error ) ) ? "\n{$error['message']}." : '';
+				$preg_error_message = ! empty( $error ) ? "\n{$error['message']}." : '';
 				if ( $default_regex_delimiter ) {
 					$flags_msg = $this->regex_flags ? "flags '$this->regex_flags'" : 'no flags';
 					$msg       = "The regex pattern '$old' with default delimiter 'chr(1)' and {$flags_msg} fails.";
@@ -242,16 +332,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$this->export_handle = STDOUT;
 				$this->verbose       = false;
 			} else {
-				$this->export_handle = @fopen( $assoc_args['export'], 'w' );
+				$this->export_handle = @fopen( $export, 'w' );
 				if ( false === $this->export_handle ) {
 					$error = error_get_last();
-					WP_CLI::error( sprintf( 'Unable to open export file "%s" for writing: %s.', $assoc_args['export'], $error['message'] ) );
+					WP_CLI::error( sprintf( 'Unable to open export file "%s" for writing: %s.', $export, $error['message'] ?? '(unknown error)' ) );
 				}
 			}
 			$export_insert_size = Utils\get_flag_value( $assoc_args, 'export_insert_size', 50 );
 			// phpcs:ignore Universal.Operators.StrictComparisons.LooseEqual -- See the code, this is deliberate.
 			if ( (int) $export_insert_size == $export_insert_size && $export_insert_size > 0 ) {
-				$this->export_insert_size = $export_insert_size;
+				$this->export_insert_size = (int) $export_insert_size;
 			}
 			$php_only = true;
 		}
@@ -261,54 +351,53 @@ class Search_Replace_Command extends WP_CLI_Command {
 			if ( true === $log || '-' === $log ) {
 				$this->log_handle = STDOUT;
 			} else {
-				$this->log_handle = @fopen( $assoc_args['log'], 'w' );
+				$this->log_handle = @fopen( $log, 'w' );
 				if ( false === $this->log_handle ) {
 					$error = error_get_last();
-					WP_CLI::error( sprintf( 'Unable to open log file "%s" for writing: %s.', $assoc_args['log'], $error['message'] ) );
+					WP_CLI::error( sprintf( 'Unable to open log file "%s" for writing: %s.', $log, $error['message'] ?? '(unknown error)' ) );
 				}
 			}
-			if ( $this->log_handle ) {
-				$before_context = Utils\get_flag_value( $assoc_args, 'before_context' );
-				if ( null !== $before_context && preg_match( '/^[0-9]+$/', $before_context ) ) {
-					$this->log_before_context = (int) $before_context;
-				}
 
-				$after_context = Utils\get_flag_value( $assoc_args, 'after_context' );
-				if ( null !== $after_context && preg_match( '/^[0-9]+$/', $after_context ) ) {
-					$this->log_after_context = (int) $after_context;
-				}
-
-				$log_prefixes = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_PREFIXES' );
-				if ( false !== $log_prefixes && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
-					$this->log_prefixes = array( $matches[1], $matches[2] );
-				}
-
-				if ( STDOUT === $this->log_handle ) {
-					$default_log_colors = array(
-						'log_table_column_id' => '%B',
-						'log_old'             => '%R',
-						'log_new'             => '%G',
-					);
-				} else {
-					$default_log_colors = array(
-						'log_table_column_id' => '',
-						'log_old'             => '',
-						'log_new'             => '',
-					);
-				}
-
-				$log_colors = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_COLORS' );
-				if ( false !== $log_colors && preg_match( '/^([^,]*),([^,]*),([^,]*)$/', $log_colors, $matches ) ) {
-					$default_log_colors = array(
-						'log_table_column_id' => $matches[1],
-						'log_old'             => $matches[2],
-						'log_new'             => $matches[3],
-					);
-				}
-
-				$this->log_colors   = $this->get_colors( $assoc_args, $default_log_colors );
-				$this->log_encoding = 0 === strpos( $wpdb->charset, 'utf8' ) ? 'UTF-8' : false;
+			$before_context = Utils\get_flag_value( $assoc_args, 'before_context' );
+			if ( null !== $before_context && preg_match( '/^[0-9]+$/', $before_context ) ) {
+				$this->log_before_context = (int) $before_context;
 			}
+
+			$after_context = Utils\get_flag_value( $assoc_args, 'after_context' );
+			if ( null !== $after_context && preg_match( '/^[0-9]+$/', $after_context ) ) {
+				$this->log_after_context = (int) $after_context;
+			}
+
+			$log_prefixes = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_PREFIXES' );
+			if ( false !== $log_prefixes && preg_match( '/^([^,]*),([^,]*)$/', $log_prefixes, $matches ) ) {
+				$this->log_prefixes = array( $matches[1], $matches[2] );
+			}
+
+			if ( STDOUT === $this->log_handle ) {
+				$default_log_colors = array(
+					'log_table_column_id' => '%B',
+					'log_old'             => '%R',
+					'log_new'             => '%G',
+				);
+			} else {
+				$default_log_colors = array(
+					'log_table_column_id' => '',
+					'log_old'             => '',
+					'log_new'             => '',
+				);
+			}
+
+			$log_colors = getenv( 'WP_CLI_SEARCH_REPLACE_LOG_COLORS' );
+			if ( false !== $log_colors && preg_match( '/^([^,]*),([^,]*),([^,]*)$/', $log_colors, $matches ) ) {
+				$default_log_colors = array(
+					'log_table_column_id' => $matches[1],
+					'log_old'             => $matches[2],
+					'log_new'             => $matches[3],
+				);
+			}
+
+			$this->log_colors   = $this->get_colors( $assoc_args, $default_log_colors );
+			$this->log_encoding = 0 === strpos( $wpdb->charset, 'utf8' ) ? 'UTF-8' : false;
 		}
 
 		$this->report = Utils\get_flag_value( $assoc_args, 'report', true );
@@ -383,6 +472,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 					WP_CLI::log( sprintf( 'Checking: %s.%s', $table, $col ) );
 				}
 
+				$serial_row = false;
+
 				if ( ! $php_only && ! $this->regex ) {
 					$col_sql          = self::esc_sql_ident( $col );
 					$wpdb->last_error = '';
@@ -422,7 +513,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		if ( 'count' === $this->format ) {
-			WP_CLI::line( $total );
+			WP_CLI::line( (string) $total );
 			return;
 		}
 
@@ -698,8 +789,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 				if ( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
 					// since 4.8.3
-					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- verified inputs above
-					$sql = $wpdb->remove_placeholder_escape( $wpdb->prepare( $sql, array_values( $values ) ) );
+
+					// @phpstan-ignore method.nonObject
+					$sql = $wpdb->remove_placeholder_escape( $wpdb->prepare( $sql, array_values( $values ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- verified inputs above
 				} else {
 					// 4.8.2 or less
 					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- verified inputs above
@@ -766,8 +858,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// 4.0
 			$old = $wpdb->esc_like( $old );
 		} else {
-			// phpcs:ignore WordPress.WP.DeprecatedFunctions.like_escapeFound -- BC-layer for WP 3.9 or less.
-			$old = like_escape( esc_sql( $old ) ); // Note: this double escaping is actually necessary, even though `esc_like()` will be used in a `prepare()`.
+			// Note: this double escaping is actually necessary, even though `esc_like()` will be used in a `prepare()`.
+			// @phpstan-ignore function.deprecated
+			$old = like_escape( esc_sql( $old ) ); // phpcs:ignore WordPress.WP.DeprecatedFunctions.like_escapeFound -- BC-layer for WP 3.9 or less.
 		}
 
 		return $old;
@@ -777,8 +870,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * Escapes (backticks) MySQL identifiers (aka schema object names) - i.e. column names, table names, and database/index/alias/view etc names.
 	 * See https://dev.mysql.com/doc/refman/5.5/en/identifiers.html
 	 *
-	 * @param string|array $idents A single identifier or an array of identifiers.
-	 * @return string|array An escaped string if given a string, or an array of escaped strings if given an array of strings.
+	 * @param string|string[] $idents A single identifier or an array of identifiers.
+	 * @return string|string[] An escaped string if given a string, or an array of escaped strings if given an array of strings.
+	 * @phpstan-return ($idents is string ? string : string[])
 	 */
 	private static function esc_sql_ident( $idents ) {
 		$backtick = static function ( $v ) {
@@ -794,8 +888,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	/**
 	 * Puts MySQL string values in single quotes, to avoid them being interpreted as column names.
 	 *
-	 * @param string|array $values A single value or an array of values.
-	 * @return string|array A quoted string if given a string, or an array of quoted strings if given an array of strings.
+	 * @param string|string[] $values A single value or an array of values.
+	 * @return string|string[] A quoted string if given a string, or an array of quoted strings if given an array of strings.
+	 * @phpstan-return ($values is string ? string : string[])
 	 */
 	private static function esc_sql_value( $values ) {
 		$quote = static function ( $v ) {
@@ -1035,6 +1130,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @param array $new_bits Array of new replacement log strings.
 	 */
 	private function log_write( $col, $keys, $table, $old_bits, $new_bits ) {
+		if ( ! $this->log_handle ) {
+			return;
+		}
+
 		$id_log              = $keys ? ( ':' . implode( ',', (array) $keys ) ) : '';
 		$table_column_id_log = $this->log_colors['log_table_column_id'][0] . $table . '.' . $col . $id_log . $this->log_colors['log_table_column_id'][1];
 
