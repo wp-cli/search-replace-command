@@ -1,0 +1,10 @@
+parameters:
+  level: 3
+  paths:
+    - src
+    - search-replace-command.php
+  scanDirectories:
+    - vendor/wp-cli/wp-cli/php
+  scanFiles:
+    - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+  treatPhpDocTypesAsCertain: false

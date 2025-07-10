@@ -7,15 +7,54 @@ use Exception;
 
 class SearchReplacer {
 
+	/**
+	 * @var string
+	 */
 	private $from;
+
+	/**
+	 * @var string
+	 */
 	private $to;
+
+	/**
+	 * @var bool
+	 */
 	private $recurse_objects;
+
+	/**
+	 * @var bool
+	 */
 	private $regex;
+
+	/**
+	 * @var string
+	 */
 	private $regex_flags;
+
+	/**
+	 * @var string
+	 */
 	private $regex_delimiter;
+
+	/**
+	 * @var int
+	 */
 	private $regex_limit;
+
+	/**
+	 * @var bool
+	 */
 	private $logging;
-	private $log_data;
+
+	/**
+	 * @var string[]
+	 */
+	private $log_data = [];
+
+	/**
+	 * @var int
+	 */
 	private $max_recursion;
 
 	/**
@@ -183,7 +222,7 @@ class SearchReplacer {
 
 	/**
 	 * Gets existing data saved for this run when logging.
-	 * @return array Array of data strings, prior to replacements.
+	 * @return string[] Array of data strings, prior to replacements.
 	 */
 	public function get_log_data() {
 		return $this->log_data;
