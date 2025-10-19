@@ -283,17 +283,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 */
 	public function __invoke( $args, $assoc_args ) {
 		global $wpdb;
-		$old                   = array_shift( $args );
-		$new                   = array_shift( $args );
-		$total                 = 0;
-		$report                = array();
-		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run', false );
-		$php_only              = Utils\get_flag_value( $assoc_args, 'precise', false );
-		$this->recurse_objects = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
-		$this->callback        = Utils\get_flag_value( $assoc_args, 'callback', false );
-		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose', false );
-		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
-		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
+		$old                     = array_shift( $args );
+		$new                     = array_shift( $args );
+		$total                   = 0;
+		$report                  = array();
+		$this->dry_run           = Utils\get_flag_value( $assoc_args, 'dry-run', false );
+		$php_only                = Utils\get_flag_value( $assoc_args, 'precise', false );
+		$this->recurse_objects   = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
+		$this->callback          = Utils\get_flag_value( $assoc_args, 'callback', false );
+		$this->verbose           = Utils\get_flag_value( $assoc_args, 'verbose', false );
+		$this->format            = Utils\get_flag_value( $assoc_args, 'format' );
+		$this->regex             = Utils\get_flag_value( $assoc_args, 'regex', false );
 		$default_regex_delimiter = false;
 
 		if ( null !== $this->regex ) {
@@ -461,11 +461,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$columns = array_merge( $columns, array_keys( $cols ) );
 			}
 			if ( $columns ) {
-				if ( in_array( '*', $columns ) ) {
+				if ( in_array( '*', $columns, true ) ) {
 					$columns = array_filter(
 						$columns,
 						function ( $e ) {
-							return $e !== '*';
+							return '*' !== $e;
 						}
 					);
 					if ( $this->include_columns ) {
