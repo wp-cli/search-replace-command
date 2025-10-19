@@ -58,6 +58,11 @@ class SearchReplacer {
 	private $max_recursion;
 
 	/**
+	 * @var bool
+	 */
+	private $callback;
+
+	/**
 	 * @param string  $from            String we're looking to replace.
 	 * @param string  $to              What we want it to be replaced with.
 	 * @param bool    $recurse_objects Should objects be recursively replaced?
@@ -219,12 +224,12 @@ class SearchReplacer {
 
 				if ( $this->callback ) {
 					if ( false === $result ) {
-						WP_CLI::error( 'The callback function return false. Stopping operation.' );
+						\WP_CLI::error( 'The callback function return false. Stopping operation.' );
 					} elseif ( is_wp_error( $result ) ) {
 						$message = $errors->get_error_message();
-						WP_CLI::error( 'The callback function threw an error. Stopping operation. ' . $message );
+						\WP_CLI::error( 'The callback function threw an error. Stopping operation. ' . $message );
 					} elseif ( ! is_string( $result ) ) {
-						WP_CLI::error( 'The callback function did not return a string. Stopping operation.' );
+						\WP_CLI::error( 'The callback function did not return a string. Stopping operation.' );
 					}
 				}
 
