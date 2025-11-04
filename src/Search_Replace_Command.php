@@ -120,7 +120,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $start_time;
 
 	/**
-	 * @var string|false
+	 * @var array<string, array<string, string[]>>|false
 	 */
 	private $where;
 

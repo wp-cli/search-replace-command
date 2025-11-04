@@ -226,7 +226,7 @@ class SearchReplacer {
 					if ( false === $result ) {
 						\WP_CLI::error( 'The callback function return false. Stopping operation.' );
 					} elseif ( is_wp_error( $result ) ) {
-						$message = $errors->get_error_message();
+						$message = $result->get_error_message();
 						\WP_CLI::error( 'The callback function threw an error. Stopping operation. ' . $message );
 					} elseif ( ! is_string( $result ) ) {
 						\WP_CLI::error( 'The callback function did not return a string. Stopping operation.' );
