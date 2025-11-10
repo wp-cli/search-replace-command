@@ -1392,3 +1392,29 @@ Feature: Do global search/replace
       """
       Success: Made 0 replacements.
       """
+
+  @require-mysql
+  Scenario: Progress bar shows when not in verbose mode
+    Given a WP install
+    And I run `wp post generate --count=100`
+
+    When I run `wp search-replace http://example.com http://example.org --precise`
+    Then STDOUT should contain:
+      """
+      Updating
+      """
+
+  @require-mysql
+  Scenario: Progress bar does not show in verbose mode
+    Given a WP install
+    And I run `wp post generate --count=10`
+
+    When I run `wp search-replace http://example.com http://example.org --verbose`
+    Then STDOUT should contain:
+      """
+      Checking:
+      """
+    And STDOUT should not contain:
+      """
+      Updating
+      """
