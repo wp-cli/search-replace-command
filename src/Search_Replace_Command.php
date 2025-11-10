@@ -120,6 +120,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $start_time;
 
 	/**
+	 * @var \cli\progress\Bar|null
+	 */
+	private $progress_bar;
+
+	/**
 	 * Searches/replaces strings in the database.
 	 *
 	 * Searches through all rows in a selection of tables and replaces
@@ -557,6 +562,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 			WP_CLI::log( sprintf( 'Checking: %s', $table ) );
 		}
 
+		// Set up progress bar if appropriate
+		$progress = null;
+		if ( $this->should_show_progress_bar() ) {
+			global $wpdb;
+			$table_sql  = self::esc_sql_ident( $table );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+			$total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$table_sql}" );
+			if ( $total_rows > 0 ) {
+				$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Exporting %s', $table ), $total_rows );
+			}
+		}
+
 		$rows = array();
 		foreach ( new Iterators\Table( $args ) as $i => $row ) {
 			$row_fields = array();
@@ -572,8 +589,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$row_fields[ $col ] = $value;
 			}
 			$rows[] = $row_fields;
+
+			if ( $progress ) {
+				$progress->tick();
+			}
 		}
 		$this->write_sql_row_fields( $table, $rows );
+
+		if ( $progress ) {
+			$progress->finish();
+		}
 
 		$table_report = array();
 		$total_rows   = 0;
@@ -650,6 +675,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$order_by_sql         = 'ORDER BY ' . implode( ',', $order_by_keys );
 		$limit                = 1000;
 
+		// Set up progress bar if appropriate
+		$progress = null;
+		if ( $this->should_show_progress_bar() ) {
+			// Count total rows to process
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+			$total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$table_sql} {$where_key}" );
+			if ( $total_rows > 0 ) {
+				$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Updating %s.%s', $table, $col ), $total_rows );
+			}
+		}
+
 		// 2 errors:
 		// - WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 		// - WordPress.CodeAnalysis.AssignmentInCondition -- no reason to do copy-paste for a single valid assignment in while
@@ -668,18 +704,27 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
 
 				if ( '' === $col_value ) {
+					if ( $progress ) {
+						$progress->tick();
+					}
 					continue;
 				}
 
 				$value = $replacer->run( $col_value );
 
 				if ( $value === $col_value ) {
+					if ( $progress ) {
+						$progress->tick();
+					}
 					continue;
 				}
 
 				// In case a needed re-serialization was unsuccessful, we should not update the value,
 				// as this implies we hit an exception while processing.
 				if ( gettype( $value ) !== gettype( $col_value ) ) {
+					if ( $progress ) {
+						$progress->tick();
+					}
 					continue;
 				}
 
@@ -696,6 +741,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 					}
 
 					$wpdb->update( $table, [ $col => $value ], $update_where );
+				}
+
+				if ( $progress ) {
+					$progress->tick();
 				}
 			}
 
@@ -733,6 +782,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$where_key_conditions[] = '( ' . implode( ' OR ', $next_key_conditions ) . ' )';
 
 			$where_key = 'WHERE ' . implode( ' AND ', $where_key_conditions );
+		}
+
+		if ( $progress ) {
+			$progress->finish();
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -848,6 +901,40 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Determines whether a progress bar should be shown.
+	 *
+	 * @return bool True if progress bar should be shown.
+	 */
+	private function should_show_progress_bar() {
+		// Don't show progress bar if in quiet mode
+		if ( WP_CLI::get_config( 'quiet' ) ) {
+			return false;
+		}
+
+		// Don't show progress bar if exporting to STDOUT
+		if ( STDOUT === $this->export_handle ) {
+			return false;
+		}
+
+		// Don't show progress bar if logging to STDOUT
+		if ( STDOUT === $this->log_handle ) {
+			return false;
+		}
+
+		// Don't show progress bar if verbose mode is enabled (it shows row-by-row updates)
+		if ( $this->verbose ) {
+			return false;
+		}
+
+		// Don't show progress bar if format is 'count'
+		if ( 'count' === $this->format ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private static function esc_like( $old ) {
