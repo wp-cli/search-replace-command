@@ -561,7 +561,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$progress = null;
 		if ( $this->should_show_progress_bar() ) {
 			global $wpdb;
-			$table_sql  = self::esc_sql_ident( $table );
+			$table_sql = self::esc_sql_ident( $table );
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 			$total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$table_sql}" );
 			if ( $total_rows > 0 ) {
