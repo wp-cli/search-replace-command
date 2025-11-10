@@ -698,44 +698,28 @@ class Search_Replace_Command extends WP_CLI_Command {
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 				$col_value = $wpdb->get_var( "SELECT {$col_sql} FROM {$table_sql} WHERE {$where_sql}" );
 
-				if ( '' === $col_value ) {
-					if ( $progress ) {
-						$progress->tick();
+				if ( '' !== $col_value ) {
+					$value = $replacer->run( $col_value );
+
+					if ( $value !== $col_value && gettype( $value ) === gettype( $col_value ) ) {
+						// In case a needed re-serialization was unsuccessful, we should not update the value,
+						// as this implies we hit an exception while processing.
+
+						if ( $this->log_handle ) {
+							$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
+							$replacer->clear_log_data();
+						}
+
+						++$count;
+						if ( ! $this->dry_run ) {
+							$update_where = array();
+							foreach ( (array) $keys as $k => $v ) {
+								$update_where[ $k ] = $v;
+							}
+
+							$wpdb->update( $table, [ $col => $value ], $update_where );
+						}
 					}
-					continue;
-				}
-
-				$value = $replacer->run( $col_value );
-
-				if ( $value === $col_value ) {
-					if ( $progress ) {
-						$progress->tick();
-					}
-					continue;
-				}
-
-				// In case a needed re-serialization was unsuccessful, we should not update the value,
-				// as this implies we hit an exception while processing.
-				if ( gettype( $value ) !== gettype( $col_value ) ) {
-					if ( $progress ) {
-						$progress->tick();
-					}
-					continue;
-				}
-
-				if ( $this->log_handle ) {
-					$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
-					$replacer->clear_log_data();
-				}
-
-				++$count;
-				if ( ! $this->dry_run ) {
-					$update_where = array();
-					foreach ( (array) $keys as $k => $v ) {
-						$update_where[ $k ] = $v;
-					}
-
-					$wpdb->update( $table, [ $col => $value ], $update_where );
 				}
 
 				if ( $progress ) {
