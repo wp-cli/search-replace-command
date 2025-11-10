@@ -120,11 +120,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $start_time;
 
 	/**
-	 * @var \cli\progress\Bar|null
-	 */
-	private $progress_bar;
-
-	/**
 	 * Searches/replaces strings in the database.
 	 *
 	 * Searches through all rows in a selection of tables and replaces
