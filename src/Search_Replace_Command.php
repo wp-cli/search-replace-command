@@ -120,6 +120,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $start_time;
 
 	/**
+	 * WHERE clause specifications for filtering rows during search-replace operations.
+	 *
+	 * The array is structured as [table_name => [column_name => [values]]], where each
+	 * table name maps to an array of column names, each of which maps to an array of
+	 * string values to match in the WHERE clause. If set to false, no filtering is applied.
+	 *
 	 * @var array<string, array<string, string[]>>|false
 	 */
 	private $where;
