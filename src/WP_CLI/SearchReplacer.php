@@ -58,7 +58,9 @@ class SearchReplacer {
 	private $max_recursion;
 
 	/**
-	 * @var bool
+	 * @var callable|string|bool Callback function or method to be invoked during search/replace operations.
+	 * If set to a callable or a string (function name), this will be called for each replacement.
+	 * If false, no callback is used.
 	 */
 	private $callback;
 
