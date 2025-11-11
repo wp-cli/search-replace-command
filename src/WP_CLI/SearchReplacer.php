@@ -73,6 +73,7 @@ class SearchReplacer {
 	 * @param string  $regex_delimiter Delimiter for regular expression.
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
+	 * @param callable|string|false $callback The callback function to invoke.
 	 */
 	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1, $callback = false ) {
 		$this->from            = $from;
@@ -97,16 +98,23 @@ class SearchReplacer {
 	 *
 	 * @param array|string $data            The data to operate on.
 	 * @param bool         $serialised      Does the value of $data need to be unserialized?
+	 * @param array        $opts            Options for the callback.
 	 *
-	 * @return array       The original array with all elements replaced as needed.
+	 * @return array|string The original array with all elements replaced as needed.
 	 */
 	public function run( $data, $serialised = false, $opts = [] ) {
 		return $this->run_recursively( $data, $serialised, 0, [], $opts );
 	}
 
 	/**
-	 * @param int          $recursion_level Current recursion depth within the original data.
-	 * @param array        $visited_data    Data that has been seen in previous recursion iterations.
+	 * The main workhorse of the run method.
+	 *
+	 * @param mixed    $data            The data to operate on.
+	 * @param bool     $serialised      Does the value of $data need to be unserialized?
+	 * @param int      $recursion_level Current recursion depth within the original data.
+	 * @param array    $visited_data    Data that has been seen in previous recursion iterations.
+	 * @param array    $opts            Options for the callback.
+	 * @return mixed The original data with all elements replaced as needed.
 	 */
 	private function run_recursively( $data, $serialised, $recursion_level = 0, $visited_data = array(), $opts = [] ) {
 
@@ -269,7 +277,7 @@ class SearchReplacer {
 	/**
 	 * Get the PCRE error constant name from an error value.
 	 *
-	 * @param  integer $error Error code.
+	 * @param  int|null $error Error code.
 	 * @return string         Error constant name.
 	 */
 	private function preg_error_message( $error ) {

@@ -611,6 +611,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 	}
 
+	/**
+	 * Exports a table's data with search and replace.
+	 *
+	 * @param string $table The table to export.
+	 * @param string $old   The string to search for.
+	 * @param string $new   The string to replace with.
+	 * @return array A tuple containing the report array and the total number of rows.
+	 */
 	private function php_export_table( $table, $old, $new ) {
 		list( $primary_keys, $columns, $all_columns ) = self::get_columns( $table );
 
@@ -675,6 +683,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return array( $table_report, $total_rows );
 	}
 
+	/**
+	 * Performs a search and replace on a column using SQL.
+	 *
+	 * @param string   $col          The column to perform the search-replace on.
+	 * @param string[] $primary_keys The primary keys of the table.
+	 * @param string   $table        The table to perform the search-replace on.
+	 * @param string   $old          The string to search for.
+	 * @param string   $new          The string to replace with.
+	 * @param string[] $clauses      The WHERE clauses to apply.
+	 * @return int The number of replacements made.
+	 */
 	private function sql_handle_col( $col, $primary_keys, $table, $old, $new, $clauses ) {
 		global $wpdb;
 
@@ -704,6 +723,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return $count;
 	}
 
+	/**
+	 * Performs a search and replace on a column using PHP.
+	 *
+	 * @param string   $col                The column to perform the search-replace on.
+	 * @param string[] $primary_keys       The primary keys of the table.
+	 * @param string   $table              The table to perform the search-replace on.
+	 * @param string   $old                The string to search for.
+	 * @param string   $new                The string to replace with.
+	 * @param string[] $additional_where   The additional WHERE clauses to apply.
+	 * @return int The number of replacements made.
+	 */
 	private function php_handle_col( $col, $primary_keys, $table, $old, $new, $additional_where ) {
 		global $wpdb;
 
@@ -818,6 +848,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return $count;
 	}
 
+	/**
+	 * Writes a set of rows to the export file as SQL INSERT statements.
+	 *
+	 * @param string $table The table to write the rows for.
+	 * @param array  $rows  The rows to write.
+	 */
 	private function write_sql_row_fields( $table, $rows ) {
 		global $wpdb;
 
@@ -888,6 +924,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 	}
 
+	/**
+	 * Gets the primary keys, text columns, and all columns for a table.
+	 *
+	 * @param string $table The table to get the columns for.
+	 * @return array A tuple containing the primary keys, text columns, and all columns.
+	 */
 	private static function get_columns( $table ) {
 		global $wpdb;
 
@@ -915,6 +957,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return array( $primary_keys, $text_columns, $all_columns );
 	}
 
+	/**
+	 * Checks if a column type is a text type.
+	 *
+	 * @param string $type The column type to check.
+	 * @return bool Whether the column type is a text type.
+	 */
 	private static function is_text_col( $type ) {
 		foreach ( array( 'text', 'varchar' ) as $token ) {
 			if ( false !== stripos( $type, $token ) ) {
@@ -925,6 +973,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return false;
 	}
 
+	/**
+	 * Escapes a string for a MySQL LIKE statement.
+	 *
+	 * @param string $old The string to escape.
+	 * @return string The escaped string.
+	 */
 	private static function esc_like( $old ) {
 		global $wpdb;
 
@@ -1020,14 +1074,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return $colors;
 	}
 
-	/*
+	/**
 	 * Logs the difference between old match and new replacement for SQL replacement.
 	 *
-	 * @param string $col Column being processed.
-	 * @param array $primary_keys Primary keys for table.
-	 * @param string $table Table being processed.
-	 * @param string $old Old value to match.
-	 * @param string $new New value to replace the old value with.
+	 * @param string   $col          Column being processed.
+	 * @param string[] $primary_keys Primary keys for table.
+	 * @param string   $table        Table being processed.
+	 * @param string   $old          Old value to match.
+	 * @param string   $new          New value to replace the old value with.
+	 * @param string[] $clauses      The WHERE clauses to apply.
 	 * @return int Count of changed rows.
 	 */
 	private function log_sql_diff( $col, $primary_keys, $table, $old, $new, $clauses ) {
@@ -1062,15 +1117,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return count( $results );
 	}
 
-	/*
+	/**
 	 * Logs the difference between old matches and new replacements at the end of a PHP (regex) replacement of a database row.
 	 *
-	 * @param string $col Column being processed.
-	 * @param array $keys Associative array (or object) of primary key names and their values for the row being processed.
-	 * @param string $table Table being processed.
-	 * @param string $old Old value to match.
-	 * @param string $new New value to replace the old value with.
-	 * @param array $log_data Array of data strings before replacements.
+	 * @param string        $col      Column being processed.
+	 * @param array|object  $keys     Associative array (or object) of primary key names and their values for the row being processed.
+	 * @param string        $table    Table being processed.
+	 * @param string        $old      Old value to match.
+	 * @param string        $new      New value to replace the old value with.
+	 * @param string[]      $log_data Array of data strings before replacements.
 	 */
 	private function log_php_diff( $col, $keys, $table, $old, $new, $log_data ) {
 		if ( $this->regex ) {
@@ -1196,14 +1251,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return array( $old_bits, $new_bits );
 	}
 
-	/*
+	/**
 	 * Outputs the log strings.
 	 *
-	 * @param string $col Column being processed.
-	 * @param array $keys Associative array (or object) of primary key names and their values for the row being processed.
-	 * @param string $table Table being processed.
-	 * @param array $old_bits Array of old match log strings.
-	 * @param array $new_bits Array of new replacement log strings.
+	 * @param string       $col      Column being processed.
+	 * @param array|object $keys     Associative array (or object) of primary key names and their values for the row being processed.
+	 * @param string       $table    Table being processed.
+	 * @param string[]     $old_bits Array of old match log strings.
+	 * @param string[]     $new_bits Array of new replacement log strings.
 	 */
 	private function log_write( $col, $keys, $table, $old_bits, $new_bits ) {
 		if ( ! $this->log_handle ) {
@@ -1226,9 +1281,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 		fwrite( $this->log_handle, "{$table_column_id_log}\n{$old_log}\n{$new_log}\n" );
 	}
 
+	/**
+	 * Develops the WHERE specifications from a string.
+	 *
+	 * @param string|null $str_specs The string of WHERE specifications.
+	 * @return array The WHERE specifications as an array.
+	 */
 	private function develop_where_specs( $str_specs ) {
 		global $wpdb;
-		$specs   = array_filter( explode( ';', $str_specs ) );
+		$specs   = array_filter( explode( ';', (string) $str_specs ) );
 		$clauses = [];
 		foreach ( $specs as $spec ) {
 			list( $tables, $cols, $conditions ) = explode( ':', $spec, 3 );
@@ -1244,12 +1305,22 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return $clauses;
 	}
 
+	/**
+	 * Excludes revisions from the search-replace operation.
+	 */
 	private function no_revision() {
 		global $wpdb;
 		$this->where[ $wpdb->posts ]['*'][]    = self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' );
 		$this->where[ $wpdb->postmeta ]['*'][] = self::esc_sql_ident( 'post_id' ) . ' IN ( SELECT ID FROM ' . $wpdb->posts . ' WHERE ' . self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' ) . ')';
 	}
 
+	/**
+	 * Gets the WHERE clauses for a given table and column.
+	 *
+	 * @param string      $table  The table to get the clauses for.
+	 * @param string|null $column The column to get the clauses for.
+	 * @return string[] The WHERE clauses.
+	 */
 	private function get_clauses( $table, $column = null ) {
 		return array_filter(
 			array_merge(
