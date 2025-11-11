@@ -215,7 +215,7 @@ class SearchReplacer {
 					}
 				} elseif ( $this->callback ) {
 					if ( strpos( $data, $this->from ) !== false ) {
-						$result = \call_user_func( $this->callback, $data, $this->to, $opts );
+						$result = \call_user_func( $this->callback, $data, $this->to, null, $opts );
 					} else {
 						// We can skip calling the function here. It must still be set so we don't remove text.
 						$result = $data;
