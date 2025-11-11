@@ -1220,7 +1220,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		fwrite( $this->log_handle, "{$table_column_id_log}\n{$old_log}\n{$new_log}\n" );
 	}
 
-	public function develop_where_specs( $str_specs ) {
+	private function develop_where_specs( $str_specs ) {
 		global $wpdb;
 		$specs   = array_filter( explode( ';', $str_specs ) );
 		$clauses = [];
