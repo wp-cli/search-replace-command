@@ -1244,7 +1244,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->where[ $wpdb->postmeta ]['*'][] = self::esc_sql_ident( 'post_id' ) . ' IN ( SELECT ID FROM ' . $wpdb->posts . ' WHERE ' . self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' ) . ')';
 	}
 
-	public function get_clauses( $table, $column = null ) {
+	private function get_clauses( $table, $column = null ) {
 		return array_filter(
 			array_merge(
 				$this->where[ $table ][ $column ] ?? [],
