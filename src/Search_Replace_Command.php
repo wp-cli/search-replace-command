@@ -469,7 +469,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 						}
 					);
 					if ( $this->include_columns ) {
-						WP_CLI::warning( 'Column-catch was passed to --where while. But --include-columns will still restrict replacements to columns: ' . implode( ',', $this->include_columns ) );
+						WP_CLI::warning( 'Column wildcard (*) was passed to --where. But --include-columns will still restrict replacements to columns: ' . implode( ',', $this->include_columns ) );
 					}
 				}
 					$this->include_columns = array_merge( $this->include_columns, $columns );
