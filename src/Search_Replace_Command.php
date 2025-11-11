@@ -1238,7 +1238,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		return $clauses;
 	}
 
-	public function no_revision() {
+	private function no_revision() {
 		global $wpdb;
 		$this->where[ $wpdb->posts ]['*'][]    = self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' );
 		$this->where[ $wpdb->postmeta ]['*'][] = self::esc_sql_ident( 'post_id' ) . ' IN ( SELECT ID FROM ' . $wpdb->posts . ' WHERE ' . self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' ) . ')';
