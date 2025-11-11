@@ -194,7 +194,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--where=<row-col-spec>]
 	 * : Perform the replacement on specific rows. Use semi-colon to
-	 * specify multiple specifictions.
+	 * specify multiple specifications.
 	 * <row-col-spec> format: <table>[,table]:[column,...]:quoted-SQL-condition
 	 *
 	 * [--revisions]
