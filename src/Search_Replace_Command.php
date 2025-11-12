@@ -1298,10 +1298,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$clauses = [];
 		foreach ( $specs as $spec ) {
 			$parts = array_map( 'trim', explode( ':', $spec, 3 ) );
-			if ( count( $parts ) < 3 ) continue;
+			if ( count( $parts ) < 3 ) {
+				continue;
+			}
 			list( $tables, $cols, $conditions ) = $parts;
-			$tables = array_filter( array_map( 'trim', explode( ',', $tables ) ) );
-			$cols   = array_filter( array_map( 'trim', explode( ',', $cols ) ) ) ?: ['*'];
+			$tables                             = array_filter( array_map( 'trim', explode( ',', $tables ) ) );
+			$cols                               = array_filter( array_map( 'trim', explode( ',', $cols ) ) ) ?: [ '*' ];
 			foreach ( $tables as $table ) {
 				foreach ( $cols as $col ) {
 					$clauses[ empty( $wpdb->{$table} ) ? $table : $wpdb->{$table} ][ $col ][] = $conditions;
