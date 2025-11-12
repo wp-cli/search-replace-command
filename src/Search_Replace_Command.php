@@ -204,8 +204,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * <row-col-spec> format: <table>[,table]:[column,...]:quoted-SQL-condition
 	 *
 	 * [--revisions]
-	 * : Default true.
-	 * If false, then identical to --where='posts::post_status="publish";postmeta::post_id IN (SELECT ID FROM {posts} WHERE post_status="publish")'
+	 * : Include revisions in the search/replace. Defaults to true; pass --no-revisions to exclude revisions (identical to --where='posts::post_status="publish";postmeta::post_id IN (SELECT ID FROM {posts} WHERE post_status="publish")').
 	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) which is more thorough,
