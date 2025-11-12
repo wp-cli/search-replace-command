@@ -217,7 +217,7 @@ Feature: Test search-replace --where option
     When I try `wp search-replace 'foobar' 'replaced' --where='posts::post_status="publish"' --include-columns=post_title`
     Then STDERR should contain:
       """
-      Warning: Column-catch was passed to --where while. But --include-columns will still restrict replacements to columns: post_title
+      Warning: Column wildcard (*) was passed to --where. But --include-columns will still restrict replacements to columns: post_title
       """
 
     And STDOUT should contain:

@@ -483,7 +483,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 						WP_CLI::warning( 'Column wildcard (*) was passed to --where. But --include-columns will still restrict replacements to columns: ' . implode( ',', $this->include_columns ) );
 					}
 				}
-					$this->include_columns = array_merge( $this->include_columns, $columns );
+				$this->include_columns = array_merge( $this->include_columns, $columns );
 			}
 		}
 
@@ -1297,9 +1297,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$specs   = array_filter( explode( ';', (string) $str_specs ) );
 		$clauses = [];
 		foreach ( $specs as $spec ) {
-			list( $tables, $cols, $conditions ) = explode( ':', $spec, 3 );
-			$tables                             = array_filter( explode( ',', $tables ) );
-			$cols                               = array_filter( explode( ',', $cols ) ) ? : [ '*' ];
+			$parts = array_map( 'trim', explode( ':', $spec, 3 ) );
+			if ( count( $parts ) < 3 ) continue;
+			list( $tables, $cols, $conditions ) = $parts;
+			$tables = array_filter( array_map( 'trim', explode( ',', $tables ) ) );
+			$cols   = array_filter( array_map( 'trim', explode( ',', $cols ) ) ) ?: ['*'];
 			foreach ( $tables as $table ) {
 				foreach ( $cols as $col ) {
 					$clauses[ empty( $wpdb->{$table} ) ? $table : $wpdb->{$table} ][ $col ][] = $conditions;
