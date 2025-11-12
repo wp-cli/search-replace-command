@@ -131,7 +131,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $where = [];
 
 	/**
-	 * @var bool
+	 * @var string|false
 	 */
 	private $callback;
 
