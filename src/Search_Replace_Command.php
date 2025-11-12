@@ -126,9 +126,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * table name maps to an array of column names, each of which maps to an array of
 	 * string values to match in the WHERE clause. If set to false, no filtering is applied.
 	 *
-	 * @var array<string, array<string, string[]>>|false
+	 * @var array<string, array<string, string[]>>
 	 */
-	private $where;
+	private $where = [];
 
 	/**
 	 * @var bool
@@ -219,7 +219,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Prints rows to the console as they're updated.
 	 *
 	 * [--callback=<user-function>]
-	 * : Runs a user-specified function on each string that contains <old>. <new> is passed as the second argument and the regex string as the third if it exists: call_user_func( 'callback', $data, $new, $search_regex ).
+	 * : Runs a user-specified function on each string that contains <old>. The callback is called as follows:
+	 *   call_user_func( 'callback', $data, $new, $search_regex, $opts )
+	 *   * $data is the matched string
+	 *   * $new is the replacement string
+	 *   * $search_regex is the regex pattern (if applicable, null otherwise)
+	 *   * $opts is an array of options.
 	 *
 	 * [--regex]
 	 * : Runs the search using a regular expression (without delimiters).

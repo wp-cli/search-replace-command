@@ -97,6 +97,8 @@ class SearchReplacer {
 	 * Ignores any serialized objects unless $recurse_objects is set to true.
 	 *
 	 * @param array|string $data            The data to operate on.
+	 * @param array        $opts            Additional options for the replacement passed through to the callback
+	 *  An array like: ['table' => $table, 'col' => $col, 'key' => $primary_keys]
 	 * @param bool         $serialised      Does the value of $data need to be unserialized?
 	 * @param array        $opts            Options for the callback.
 	 *
