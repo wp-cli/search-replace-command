@@ -905,8 +905,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return false;
 		}
 
-		// Don't show progress bar if logging to STDOUT
-		if ( STDOUT === $this->log_handle ) {
+		// Don't show progress bar if logging is enabled (would interfere with log output)
+		if ( null !== $this->log_handle ) {
 			return false;
 		}
 
