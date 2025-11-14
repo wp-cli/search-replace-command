@@ -1400,7 +1400,7 @@ Feature: Do global search/replace
     And I run `wp option set test_url 'Visit http://example.com for more'`
 
     When I run `wp search-replace http://example.com http://example.org --precise`
-    Then STDERR should contain:
+    Then STDOUT should contain:
       """
       Updating
       """
@@ -1415,7 +1415,7 @@ Feature: Do global search/replace
       """
       Checking:
       """
-    And STDERR should not contain:
+    And STDOUT should not contain:
       """
       Updating
       """
