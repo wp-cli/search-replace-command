@@ -670,24 +670,24 @@ class Search_Replace_Command extends WP_CLI_Command {
 		);
 		$order_by_sql         = 'ORDER BY ' . implode( ',', $order_by_keys );
 		$limit                = 1000;
-
-		// Set up progress bar if appropriate
-		$progress = null;
-		if ( $this->should_show_progress_bar() ) {
-			// Count total rows to process
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-			$total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$table_sql} {$where_key}" );
-			if ( $total_rows > 0 ) {
-				WP_CLI::log( sprintf( 'Updating %s.%s (%d rows)', $table, $col, $total_rows ) );
-				$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Processing %s.%s', $table, $col ), $total_rows );
-			}
-		}
+		$progress             = null;
 
 		// 2 errors:
 		// - WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 		// - WordPress.CodeAnalysis.AssignmentInCondition -- no reason to do copy-paste for a single valid assignment in while
 		// phpcs:ignore
 		while ( $rows = $wpdb->get_results( "SELECT {$primary_keys_sql} FROM {$table_sql} {$where_key} {$order_by_sql} LIMIT {$limit}" ) ) {
+			// Set up progress bar on first iteration if we have rows to process
+			if ( null === $progress && $this->should_show_progress_bar() ) {
+				// Count total rows to process
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$table_sql} {$where_key}" );
+				if ( $total_rows > 0 ) {
+					WP_CLI::log( sprintf( 'Updating %s.%s (%d rows)', $table, $col, $total_rows ) );
+					$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Processing %s.%s', $table, $col ), $total_rows );
+				}
+			}
+			
 			foreach ( $rows as $keys ) {
 				$where_sql = '';
 				foreach ( (array) $keys as $k => $v ) {
