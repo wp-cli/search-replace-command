@@ -566,7 +566,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$table_sql}" );
 			if ( $total_rows > 0 ) {
 				WP_CLI::log( sprintf( 'Exporting %s (%d rows)', $table, $total_rows ) );
-				$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Progress' ), $total_rows );
+				$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Processing %s', $table ), $total_rows );
 			}
 		}
 
@@ -679,7 +679,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$total_rows = $wpdb->get_var( "SELECT COUNT(*) FROM {$table_sql} {$where_key}" );
 			if ( $total_rows > 0 ) {
 				WP_CLI::log( sprintf( 'Updating %s.%s (%d rows)', $table, $col, $total_rows ) );
-				$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Progress', $table, $col ), $total_rows );
+				$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Processing %s.%s', $table, $col ), $total_rows );
 			}
 		}
 
