@@ -1396,7 +1396,8 @@ Feature: Do global search/replace
   @require-mysql
   Scenario: Progress bar shows when not in verbose mode
     Given a WP install
-    And I run `wp post generate --count=100 --post_content="Visit http://example.com for more info"`
+    And I run `wp post generate --count=100`
+    And I run `wp option set test_url 'Visit http://example.com for more'`
 
     When I run `wp search-replace http://example.com http://example.org --precise`
     Then STDOUT should contain:
