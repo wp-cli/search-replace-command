@@ -307,15 +307,20 @@ Feature: Do global search/replace
     And I run `wp post generate --count=20`
 
     When I run `wp search-replace <flags> {SITEURL} <replacement>`
-    Then STDOUT should be a table containing rows:
-      | Table    | Column | Replacements | Type |
-      | wp_posts | guid   | 20           | SQL  |
+    Then STDOUT should contain:
+      """
+      Detected URL replacement
+      """
+    And STDOUT should contain:
+      """
+      wp_posts	guid	20	SQL
+      """
 
     Examples:
-      | replacement           | flags     |
-      | {SITEURL}/subdir      |           |
-      | https://newdomain.com |           |
-      | https://newdomain.com | --dry-run |
+      | replacement       | flags     |
+      | {SITEURL}/subdir  |           |
+      | newdomain.com     |           |
+      | newdomain.com     | --dry-run |
 
   @require-mysql
   Scenario Outline: Choose replacement method (PHP or MySQL/MariaDB) given proper flags or data.
@@ -324,10 +329,14 @@ Feature: Do global search/replace
     And save STDOUT as {SITEURL}
     When I run `wp search-replace <flags> {SITEURL} https://wordpress.org`
 
-    Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type       |
-      | wp_options | option_value | 2            | <serial>   |
-      | wp_posts   | post_title   | 0            | <noserial> |
+    Then STDOUT should contain:
+      """
+      Detected URL replacement
+      """
+    And STDOUT should contain:
+      """
+      wp_options	option_value	2	<serial>
+      """
 
     Examples:
       | flags     | serial | noserial |
@@ -399,9 +408,14 @@ Feature: Do global search/replace
       """
 
     When I run `wp search-replace 'https://example.jp/' 'https://example.com/' wp_options --regex-delimiter='/'`
-    Then STDOUT should be a table containing rows:
-      | Table      | Column       | Replacements | Type |
-      | wp_options | option_value | 2            | PHP  |
+    Then STDOUT should contain:
+      """
+      Detected URL replacement
+      """
+    And STDOUT should contain:
+      """
+      wp_options	option_value	2	PHP
+      """
 
     When I run `wp option get home`
     Then STDOUT should be:

@@ -4,6 +4,7 @@ use cli\Colors;
 use cli\Table;
 use WP_CLI\Iterators;
 use WP_CLI\SearchReplacer;
+use WP_CLI\SearchReplace\Non_URL_Columns;
 use WP_CLI\Utils;
 use function cli\safe_substr;
 
@@ -182,6 +183,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Perform the replacement on specific columns. Use commas to
 	 * specify multiple columns.
 	 *
+	 * [--smart-url]
+	 * : Enable smart URL mode. Automatically skips columns that cannot contain URLs
+	 * (like post_type, post_status, etc.), significantly improving performance for
+	 * URL replacements. This adds a curated list of non-URL columns to skip-columns.
+	 *
+	 * [--analyze-tables]
+	 * : Enable advanced table analysis mode. Analyzes MySQL column datatypes
+	 * to automatically skip non-text columns (integers, dates, enums, etc.)
+	 * in addition to the static skip list. Useful for plugin tables with
+	 * custom schemas. Requires --smart-url to be enabled.
+	 * Note: This adds a small overhead for table introspection.
+	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) which is more thorough,
 	 * but slower.
@@ -248,6 +261,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     # Search/replace to a SQL file without transforming the database
 	 *     $ wp search-replace foo bar --export=database.sql
 	 *
+	 *     # URL replacement with smart column skipping (faster for URL changes)
+	 *     $ wp search-replace 'http://example.test' 'http://example.com' --smart-url
+	 *
+	 *     # URL replacement with advanced table analysis for plugin tables
+	 *     $ wp search-replace 'http://old.test' 'http://new.test' --smart-url --analyze-tables
+	 *
 	 *     # Bash script: Search/replace production to development url (multisite compatible)
 	 *     #!/bin/bash
 	 *     if $(wp --url=http://example.com core is-installed --network); then
@@ -257,7 +276,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     fi
 	 *
 	 * @param array<string> $args Positional arguments.
-	 * @param array{'dry-run'?: bool, 'network'?: bool, 'all-tables-with-prefix'?: bool, 'all-tables'?: bool, 'export'?: string, 'export_insert_size'?: string, 'skip-tables'?: string, 'skip-columns'?: string, 'include-columns'?: string, 'precise'?: bool, 'recurse-objects'?: bool, 'verbose'?: bool, 'regex'?: bool, 'regex-flags'?: string, 'regex-delimiter'?: string, 'regex-limit'?: string, 'format': string, 'report'?: bool, 'report-changed-only'?: bool, 'log'?: string, 'before_context'?: string, 'after_context'?: string} $assoc_args Associative arguments.
+	 * @param array{'dry-run'?: bool, 'network'?: bool, 'all-tables-with-prefix'?: bool, 'all-tables'?: bool, 'export'?: string, 'export_insert_size'?: string, 'skip-tables'?: string, 'skip-columns'?: string, 'include-columns'?: string, 'smart-url'?: bool, 'analyze-tables'?: bool, 'precise'?: bool, 'recurse-objects'?: bool, 'verbose'?: bool, 'regex'?: bool, 'regex-flags'?: string, 'regex-delimiter'?: string, 'regex-limit'?: string, 'format': string, 'report'?: bool, 'report-changed-only'?: bool, 'log'?: string, 'before_context'?: string, 'after_context'?: string} $assoc_args Associative arguments.
 	 */
 	public function __invoke( $args, $assoc_args ) {
 		global $wpdb;
@@ -271,6 +290,38 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose', false );
 		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
+
+		// Handle smart URL mode
+		$smart_url      = Utils\get_flag_value( $assoc_args, 'smart-url', false );
+		$analyze_tables = Utils\get_flag_value( $assoc_args, 'analyze-tables', false );
+
+		// Auto-detect URL replacements and enable smart-url mode
+		$auto_detected = false;
+		if ( ! $smart_url && ! $this->regex && ( 0 === strpos( $old, 'http://' ) || 0 === strpos( $old, 'https://' ) ) ) {
+			$smart_url     = true;
+			$auto_detected = true;
+		}
+
+		if ( $analyze_tables && ! $smart_url ) {
+			WP_CLI::error( 'The --analyze-tables flag requires --smart-url to be enabled.' );
+		}
+
+		// Validate that the search string is actually a URL when using smart-url mode
+		if ( $smart_url && ! $this->regex ) {
+			if ( ! filter_var( $old, FILTER_VALIDATE_URL ) ) {
+				WP_CLI::error(
+					sprintf(
+						'The --smart-url flag is designed for URL replacements, but "%s" is not a valid URL. ' .
+						'Please use a full URL (e.g., http://example.com) or remove the --smart-url flag.',
+						$old
+					)
+				);
+			}
+		}
+
+		if ( $smart_url ) {
+			$this->apply_smart_url_mode( $args, $assoc_args, $analyze_tables, $auto_detected );
+		}
 
 		$default_regex_delimiter = false;
 
@@ -1148,5 +1199,114 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		fwrite( $this->log_handle, "{$table_column_id_log}\n{$old_log}\n{$new_log}\n" );
+	}
+
+	/**
+	 * Apply smart URL mode to automatically skip non-URL columns.
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments (passed by reference).
+	 * @param bool  $analyze_tables Whether to analyze tables for additional skips.
+	 * @param bool  $auto_detected Whether smart-url was auto-detected from the search string.
+	 */
+	private function apply_smart_url_mode( $args, &$assoc_args, $analyze_tables, $auto_detected = false ) {
+		// Get existing skip columns
+		$existing_skip_columns = Utils\get_flag_value( $assoc_args, 'skip-columns', '' );
+		$skip_columns_array    = array_filter( explode( ',', $existing_skip_columns ) );
+
+		// Start with our static non-URL columns
+		$all_skip_columns = Non_URL_Columns::get_core_columns();
+
+		// If analyze-tables is enabled, add datatype-based skipping
+		if ( $analyze_tables ) {
+			$tables = Utils\wp_get_table_names( $args, $assoc_args );
+
+			if ( $this->verbose && ! WP_CLI::get_config( 'quiet' ) && 'count' !== $this->format ) {
+				WP_CLI::log( 'Analyzing table structures for additional columns to skip...' );
+			}
+
+			$analyzed_columns = $this->analyze_tables_for_skip_columns( $tables );
+			$all_skip_columns = array_merge( $all_skip_columns, $analyzed_columns );
+		}
+
+		// Merge with user-provided skip columns
+		$all_skip_columns = array_unique( array_merge( $skip_columns_array, $all_skip_columns ) );
+
+		// Update the assoc_args with the merged skip columns
+		$assoc_args['skip-columns'] = implode( ',', $all_skip_columns );
+
+		// Inform the user about the optimization
+		if ( ! WP_CLI::get_config( 'quiet' ) && 'count' !== $this->format ) {
+			if ( $auto_detected ) {
+				WP_CLI::log(
+					WP_CLI::colorize(
+						'%GDetected URL replacement:%n Automatically enabling smart-url mode to skip non-URL columns.'
+					)
+				);
+			}
+
+			if ( $this->verbose ) {
+				$mode_text = $analyze_tables ? 'Smart URL mode with table analysis' : 'Smart URL mode';
+				WP_CLI::log(
+					sprintf(
+						'%s: Skipping %d columns: %s',
+						$mode_text,
+						count( $all_skip_columns ),
+						implode( ', ', array_slice( $all_skip_columns, 0, 10 ) ) . ( count( $all_skip_columns ) > 10 ? '...' : '' )
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Analyze tables to find additional columns to skip based on datatypes.
+	 *
+	 * This method examines the MySQL column definitions to identify columns
+	 * that cannot contain URLs based on their datatype (integers, dates, enums, etc.)
+	 * or naming patterns.
+	 *
+	 * @param array $tables List of table names to analyze.
+	 * @return array List of column names to skip.
+	 */
+	private function analyze_tables_for_skip_columns( $tables ) {
+		global $wpdb;
+
+		$skip_columns = array();
+
+		foreach ( $tables as $table ) {
+			// Get column information from INFORMATION_SCHEMA
+			$columns = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT COLUMN_NAME AS column_name, DATA_TYPE AS data_type, COLUMN_TYPE AS column_type
+					 FROM INFORMATION_SCHEMA.COLUMNS
+					 WHERE TABLE_SCHEMA = DATABASE()
+					 AND TABLE_NAME = %s',
+					$table
+				)
+			);
+
+			if ( empty( $columns ) ) {
+				continue;
+			}
+
+			foreach ( $columns as $col ) {
+				$column_name = $col->column_name;
+				$data_type   = $col->data_type;
+				$column_type = $col->column_type;
+
+				// Skip columns based on datatype
+				if ( Non_URL_Columns::is_non_text_datatype( $data_type, $column_type ) ) {
+					$skip_columns[] = $column_name;
+				}
+
+				// Skip columns based on naming patterns
+				if ( Non_URL_Columns::matches_non_url_pattern( $column_name ) ) {
+					$skip_columns[] = $column_name;
+				}
+			}
+		}
+
+		return array_unique( $skip_columns );
 	}
 }
