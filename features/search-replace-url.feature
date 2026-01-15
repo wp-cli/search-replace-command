@@ -632,3 +632,36 @@ Feature: URL-optimized search/replace with smart column skipping
       """
     And the return code should be 1
 
+  @require-mysql
+  Scenario: Error when --analyze-tables used without --smart-url
+    Given a WP install
+
+    When I try `wp search-replace 'foo' 'bar' --analyze-tables`
+    Then STDERR should contain:
+      """
+      Error: The --analyze-tables flag requires --smart-url to be enabled.
+      """
+    And the return code should be 1
+
+  @require-mysql
+  Scenario: Table analysis skips SET columns
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_test_set (id INT PRIMARY KEY, permissions SET('read','write','delete'), data TEXT)"`
+
+    When I run `wp db query "INSERT INTO wp_test_set VALUES (1, 'read,write', 'http://set.test')"`
+    Then STDERR should be empty
+
+    When I run `wp search-replace --smart-url 'http://set.test' 'http://set.com' wp_test_set --analyze-tables --all-tables-with-prefix`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp db query "SELECT data FROM wp_test_set WHERE id = 1" --skip-column-names`
+    Then STDOUT should contain:
+      """
+      http://set.com
+      """
+
+    When I run `wp db query "DROP TABLE wp_test_set"`
+    Then STDERR should be empty

@@ -1287,7 +1287,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			);
 
 			if ( empty( $columns ) ) {
-				continue;
+				continue; // @codeCoverageIgnore
 			}
 
 			foreach ( $columns as $col ) {
