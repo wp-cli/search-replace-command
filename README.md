@@ -74,7 +74,7 @@ change primary key values.
 		specify multiple columns.
 
 	[--smart-url]
-		Enable smart URL mode. Automatically skips 75+ WordPress core columns
+		Enable smart URL mode. Automatically skips dozens of WordPress core columns
 		that cannot contain URLs (like post_type, post_status, user_pass, etc.),
 		significantly improving performance for URL replacements. This is
 		particularly useful when migrating sites or changing domain names.
