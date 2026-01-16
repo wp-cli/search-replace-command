@@ -100,6 +100,9 @@ class Non_URL_Columns {
 			'comment_status',
 			'ping_status',
 			'post_password',
+			// Note: post_name is a slug (not a full URL) in normal WordPress usage.
+			// In rare edge cases (e.g. imports) it may contain URL-like strings, but we
+			// still treat it as non-URL for search/replace to keep this optimization simple.
 			'post_name',
 			'to_ping',
 			'pinged',
