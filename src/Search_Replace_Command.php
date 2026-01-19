@@ -295,12 +295,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 			if ( null === $new ) {
 				$missing[] = '<new>';
 			}
-			$error_msg = 'Please provide both <old> and <new> arguments.';
-			if ( count( $missing ) === 1 ) {
-				$error_msg = sprintf( 'Please provide the %s argument.', $missing[0] );
-			}
-			$error_msg .= "\n\nNote: If your search or replacement string starts with '--', use the flag syntax instead:";
-			$error_msg .= "\n  wp search-replace --old='--text' --new='replacement'";
+			$error_msg = count( $missing ) === 2
+				? 'Please provide both <old> and <new> arguments.'
+				: sprintf( 'Please provide the %s argument.', $missing[0] );
+
+			$error_msg .= "\n\nNote: If your search or replacement string starts with '--', use the flag syntax instead:"
+				. "\n  wp search-replace --old='--text' --new='replacement'";
+
 			WP_CLI::error( $error_msg );
 		}
 
