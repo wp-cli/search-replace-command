@@ -134,10 +134,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * <old>
+	 * [<old>]
 	 * : A string to search for within the database.
 	 *
-	 * <new>
+	 * [<new>]
 	 * : Replace instances of the first string with this new string.
 	 *
 	 * [<table>...]
