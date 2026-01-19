@@ -1461,7 +1461,7 @@ Feature: Do global search/replace
   Scenario: Error when both flags and positional arguments provided
     Given a WP install
 
-    When I try `wp search-replace --old='flag-old' 'positional-old' 'positional-new'`
+    When I try `wp search-replace --old='flag-old' --new='flag-new' 'positional-arg'`
     Then STDERR should contain:
       """
       Cannot use both positional arguments and --old/--new flags
@@ -1511,4 +1511,27 @@ Feature: Do global search/replace
     And STDOUT should not contain:
       """
       -single-hyphen
+      """
+
+  @require-mysql
+  Scenario: Allow mixing one flag with one positional argument
+    Given a WP install
+    And I run `wp post create --post_title="Test Post" --post_content="This is --old-content text" --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp search-replace --old='--old-content' 'new-content'`
+    Then STDOUT should contain:
+      """
+      wp_posts
+      """
+    And the return code should be 0
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      new-content
+      """
+    And STDOUT should not contain:
+      """
+      --old-content
       """
