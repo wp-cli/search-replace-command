@@ -1434,3 +1434,81 @@ Feature: Do global search/replace
       --new
       """
     And the return code should be 1
+
+  @require-mysql
+  Scenario: Error when only --old flag provided without --new
+    Given a WP install
+
+    When I try `wp search-replace --old='test-value'`
+    Then STDERR should contain:
+      """
+      Please provide the <new> argument
+      """
+    And the return code should be 1
+
+  @require-mysql
+  Scenario: Error when only --new flag provided without --old
+    Given a WP install
+
+    When I try `wp search-replace --new='test-value'`
+    Then STDERR should contain:
+      """
+      Please provide the <old> argument
+      """
+    And the return code should be 1
+
+  @require-mysql
+  Scenario: Error when both flags and positional arguments provided
+    Given a WP install
+
+    When I try `wp search-replace --old='flag-old' 'positional-old' 'positional-new'`
+    Then STDERR should contain:
+      """
+      Cannot use both positional arguments and --old/--new flags
+      """
+    And the return code should be 1
+
+  @require-mysql
+  Scenario: Error when empty string provided via --old flag
+    Given a WP install
+
+    When I try `wp search-replace --old='' --new='replacement'`
+    Then STDERR should contain:
+      """
+      Please provide the <old> argument
+      """
+    And the return code should be 1
+
+  @require-mysql
+  Scenario: Error when empty string provided via --new flag
+    Given a WP install
+
+    When I try `wp search-replace --old='search' --new=''`
+    Then STDERR should contain:
+      """
+      Please provide the <new> argument
+      """
+    And the return code should be 1
+
+  @require-mysql
+  Scenario: Search/replace string starting with single hyphen works with positional args
+    Given a WP install
+    And I run `wp post create --post_title="Test Post" --post_content="This is -single-hyphen content" --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp search-replace '-single-hyphen' '-replaced-hyphen'`
+    Then STDOUT should contain:
+      """
+      wp_posts
+      """
+    And the return code should be 0
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      -replaced-hyphen
+      """
+    And STDOUT should not contain:
+      """
+      -single-hyphen
+      """

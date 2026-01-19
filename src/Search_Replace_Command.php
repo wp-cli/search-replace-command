@@ -275,24 +275,32 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		// Support --old and --new flags as an alternative to positional arguments.
 		// This allows users to search/replace strings that start with '--'.
-		$old = Utils\get_flag_value( $assoc_args, 'old' );
-		$new = Utils\get_flag_value( $assoc_args, 'new' );
+		$old_flag = Utils\get_flag_value( $assoc_args, 'old' );
+		$new_flag = Utils\get_flag_value( $assoc_args, 'new' );
 
-		// Fall back to positional arguments if flags not provided.
-		if ( null === $old ) {
-			$old = array_shift( $args );
+		// Check if both flags and positional arguments are provided.
+		$has_flags = null !== $old_flag || null !== $new_flag;
+		$has_args  = ! empty( $args );
+		if ( $has_flags && $has_args ) {
+			WP_CLI::error( 'Cannot use both positional arguments and --old/--new flags. Please use one method or the other.' );
 		}
-		if ( null === $new ) {
+
+		// Determine old and new values based on flags or positional arguments.
+		if ( null !== $old_flag || null !== $new_flag ) {
+			$old = $old_flag;
+			$new = $new_flag;
+		} else {
+			$old = array_shift( $args );
 			$new = array_shift( $args );
 		}
 
-		// Validate that both old and new values are provided.
-		if ( null === $old || null === $new ) {
+		// Validate that both old and new values are provided and not empty.
+		if ( null === $old || null === $new || '' === $old || '' === $new ) {
 			$missing = array();
-			if ( null === $old ) {
+			if ( null === $old || '' === $old ) {
 				$missing[] = '<old>';
 			}
-			if ( null === $new ) {
+			if ( null === $new || '' === $new ) {
 				$missing[] = '<new>';
 			}
 			$error_msg = count( $missing ) === 2
