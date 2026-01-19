@@ -288,7 +288,20 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		// Validate that both old and new values are provided.
 		if ( null === $old || null === $new ) {
-			WP_CLI::error( "Please provide both <old> and <new> arguments.\n\nNote: Strings starting with '--' (hyphens) cannot be used as positional arguments. Use the '--old' and '--new' flags instead:\n  wp search-replace --old='--old-word' --new='new-word'" );
+			$missing = array();
+			if ( null === $old ) {
+				$missing[] = '<old>';
+			}
+			if ( null === $new ) {
+				$missing[] = '<new>';
+			}
+			$error_msg = 'Please provide both <old> and <new> arguments.';
+			if ( count( $missing ) === 1 ) {
+				$error_msg = sprintf( 'Please provide the %s argument.', $missing[0] );
+			}
+			$error_msg .= "\n\nNote: If your search or replacement string starts with '--', use the flag syntax instead:";
+			$error_msg .= "\n  wp search-replace --old='--text' --new='replacement'";
+			WP_CLI::error( $error_msg );
 		}
 
 		$total                 = 0;
