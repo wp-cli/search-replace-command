@@ -1392,3 +1392,45 @@ Feature: Do global search/replace
       """
       Success: Made 0 replacements.
       """
+
+  @require-mysql
+  Scenario: Search/replace strings starting with hyphens using --old and --new flags
+    Given a WP install
+    And I run `wp post create --post_title="Test Post" --post_content="This is --old-content and more text" --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp search-replace --old='--old-content' --new='--new-content'`
+    Then STDOUT should contain:
+      """
+      wp_posts
+      """
+    And the return code should be 0
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      --new-content
+      """
+    And STDOUT should not contain:
+      """
+      --old-content
+      """
+
+  @require-mysql
+  Scenario: Error when neither positional args nor flags provided
+    Given a WP install
+
+    When I try `wp search-replace`
+    Then STDERR should contain:
+      """
+      Please provide both <old> and <new> arguments
+      """
+    And STDERR should contain:
+      """
+      --old
+      """
+    And STDERR should contain:
+      """
+      --new
+      """
+    And the return code should be 1
