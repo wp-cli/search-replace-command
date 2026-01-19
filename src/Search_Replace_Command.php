@@ -279,20 +279,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$new_flag = Utils\get_flag_value( $assoc_args, 'new' );
 
 		// Check if both flags and positional arguments are provided.
-		$has_flags = null !== $old_flag || null !== $new_flag;
-		$has_args  = ! empty( $args );
-		if ( $has_flags && $has_args ) {
+		$both_flags_provided = null !== $old_flag && null !== $new_flag;
+		$has_positional_args = ! empty( $args );
+		if ( $both_flags_provided && $has_positional_args ) {
 			WP_CLI::error( 'Cannot use both positional arguments and --old/--new flags. Please use one method or the other.' );
 		}
 
-		// Determine old and new values based on flags or positional arguments.
-		if ( null !== $old_flag || null !== $new_flag ) {
-			$old = $old_flag;
-			$new = $new_flag;
-		} else {
-			$old = array_shift( $args );
-			$new = array_shift( $args );
-		}
+		// Determine old and new values.
+		$old = null !== $old_flag ? $old_flag : array_shift( $args );
+		$new = null !== $new_flag ? $new_flag : array_shift( $args );
 
 		// Validate that both old and new values are provided and not empty.
 		if ( null === $old || null === $new || '' === $old || '' === $new ) {
