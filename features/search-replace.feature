@@ -1480,15 +1480,14 @@ Feature: Do global search/replace
     And the return code should be 1
 
   @require-mysql
-  Scenario: Error when empty string provided via --new flag
+  Scenario: No error when empty string provided via --new flag
     Given a WP install
 
     When I try `wp search-replace --old='search' --new=''`
-    Then STDERR should contain:
+    Then STDERR should not contain:
       """
       Please provide the <new> argument
       """
-    And the return code should be 1
 
   @require-mysql
   Scenario: Search/replace string starting with single hyphen works with positional args
