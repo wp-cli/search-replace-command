@@ -290,12 +290,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$new = null !== $new_flag ? $new_flag : array_shift( $args );
 
 		// Validate that both old and new values are provided and not empty.
-		if ( null === $old || null === $new || '' === $old || '' === $new ) {
+		if ( null === $old || null === $new || '' === $old ) {
 			$missing = array();
 			if ( null === $old || '' === $old ) {
 				$missing[] = '<old>';
 			}
-			if ( null === $new || '' === $new ) {
+			// new value is allowed to be empty.
+			if ( null === $new ) {
 				$missing[] = '<new>';
 			}
 			$error_msg = count( $missing ) === 2
