@@ -210,7 +210,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Force the use of PHP (instead of SQL) for all columns. By default, the command
 	 * uses fast SQL queries, but automatically switches to PHP for columns containing
 	 * serialized data. Use this flag to ensure PHP processes all columns, which is
-	 * slower but handles complex serialized data structures more reliably. 	 * If --callback is specified, --precise is inferred.
+	 * slower but handles complex serialized data structures more reliably.      * If --callback is specified, --precise is inferred.
 	 *
 	 * [--recurse-objects]
 	 * : Enable recursing into objects to replace strings. Defaults to true;
