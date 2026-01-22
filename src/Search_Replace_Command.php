@@ -260,7 +260,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 *     # Search/replace string containing hyphens
 	 *     $ wp search-replace --old='--old-string' --new='new-string'
-   *
+	*
 	 *     # Use precise mode for complex serialized data
 	 *     $ wp search-replace 'oldurl.com' 'newurl.com' --precise
 	 *
