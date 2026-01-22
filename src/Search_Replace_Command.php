@@ -207,8 +207,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Include revisions in the search/replace. Defaults to true; pass --no-revisions to exclude revisions (identical to --where='posts::post_status="publish";postmeta::post_id IN (SELECT ID FROM {posts} WHERE post_status="publish")').
 	 *
 	 * [--precise]
-	 * : Force the use of PHP (instead of SQL) which is more thorough,
-	 * but slower. If --callback is specified, --precise is inferred.
+	 * : Force the use of PHP (instead of SQL) for all columns. By default, the command
+	 * uses fast SQL queries, but automatically switches to PHP for columns containing
+	 * serialized data. Use this flag to ensure PHP processes all columns, which is
+	 * slower but handles complex serialized data structures more reliably. 	 * If --callback is specified, --precise is inferred.
 	 *
 	 * [--recurse-objects]
 	 * : Enable recursing into objects to replace strings. Defaults to true;
@@ -279,6 +281,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 *     # Search/replace to a SQL file without transforming the database
 	 *     $ wp search-replace foo bar --export=database.sql
+	 *
+	 *     # Use precise mode for complex serialized data
+	 *     $ wp search-replace 'oldurl.com' 'newurl.com' --precise
 	 *
 	 *     # Bash script: Search/replace production to development url (multisite compatible)
 	 *     #!/bin/bash
