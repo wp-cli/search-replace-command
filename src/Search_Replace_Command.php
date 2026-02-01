@@ -576,6 +576,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
 				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
+					// Not serialised, not logging
 					$new_value = $this->run_search_replace( $value, $old, $new, false, false );
 					if ( $new_value !== $value ) {
 						++$col_counts[ $col ];
@@ -684,6 +685,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					continue;
 				}
 
+				// Not serialised, but may need logging
 				$value = $this->run_search_replace( $col_value, $old, $new, false, $logging );
 
 				if ( $value === $col_value ) {
