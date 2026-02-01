@@ -1213,7 +1213,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					if ( in_array( $data, $visited_data, true ) ) {
 						return $data; // Avoid infinite loops when there's a cycle
 					}
-					// Add this data to the list of
+					// Add this data to the list of visited data to prevent infinite loops
 					$visited_data[] = $data;
 				}
 			}
