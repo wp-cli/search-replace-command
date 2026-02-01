@@ -3,7 +3,6 @@
 use cli\Colors;
 use cli\Table;
 use WP_CLI\Iterators;
-use WP_CLI\SearchReplacer;
 use WP_CLI\Utils;
 use function cli\safe_substr;
 
@@ -118,6 +117,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @var float
 	 */
 	private $start_time;
+
+	/**
+	 * @var string[]
+	 */
+	private $replacer_log_data = array();
+
+	/**
+	 * @var int
+	 */
+	private $max_recursion;
 
 	/**
 	 * Searches/replaces strings in the database.
@@ -555,7 +564,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size,
 		);
 
-		$replacer   = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
 		$col_counts = array_fill_keys( $all_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
@@ -568,7 +576,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
 				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
-					$new_value = $replacer->run( $value );
+					$new_value = $this->run_search_replace( $value, $old, $new, false, false );
 					if ( $new_value !== $value ) {
 						++$col_counts[ $col ];
 						$value = $new_value;
@@ -631,8 +639,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private function php_handle_col( $col, $primary_keys, $table, $old, $new ) {
 		global $wpdb;
 
-		$count    = 0;
-		$replacer = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
+		$count   = 0;
+		$logging = null !== $this->log_handle;
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );
@@ -676,7 +684,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					continue;
 				}
 
-				$value = $replacer->run( $col_value );
+				$value = $this->run_search_replace( $col_value, $old, $new, false, $logging );
 
 				if ( $value === $col_value ) {
 					continue;
@@ -689,8 +697,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 
 				if ( $this->log_handle ) {
-					$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
-					$replacer->clear_log_data();
+					$this->log_php_diff( $col, $keys, $table, $old, $new, $this->get_replacer_log_data() );
+					$this->clear_replacer_log_data();
 				}
 
 				++$count;
@@ -1153,5 +1161,196 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		fwrite( $this->log_handle, "{$table_column_id_log}\n{$old_log}\n{$new_log}\n" );
+	}
+
+	/**
+	 * Run a search/replace on data.
+	 *
+	 * @param array|string $data       The data to operate on.
+	 * @param string       $old        String we're looking to replace.
+	 * @param string       $new        What we want it to be replaced with.
+	 * @param bool         $serialised Does the value of $data need to be unserialized?
+	 * @param bool         $logging    Whether to log changes.
+	 *
+	 * @return array|string The original data with all elements replaced as needed.
+	 */
+	private function run_search_replace( $data, $old, $new, $serialised = false, $logging = false ) {
+		// Initialize max_recursion if not already set
+		if ( ! isset( $this->max_recursion ) ) {
+			// Get the XDebug nesting level. Will be zero (no limit) if no value is set
+			$this->max_recursion = intval( ini_get( 'xdebug.max_nesting_level' ) );
+		}
+
+		return $this->run_search_replace_recursively( $data, $old, $new, $serialised, $logging );
+	}
+
+	/**
+	 * Recursively run a search/replace on data.
+	 *
+	 * @param array|string $data            The data to operate on.
+	 * @param string       $old             String we're looking to replace.
+	 * @param string       $new             What we want it to be replaced with.
+	 * @param bool         $serialised      Does the value of $data need to be unserialized?
+	 * @param bool         $logging         Whether to log changes.
+	 * @param int          $recursion_level Current recursion depth within the original data.
+	 * @param array        $visited_data    Data that has been seen in previous recursion iterations.
+	 *
+	 * @return array|string The original data with all elements replaced as needed.
+	 */
+	private function run_search_replace_recursively( $data, $old, $new, $serialised = false, $logging = false, $recursion_level = 0, $visited_data = array() ) {
+		// some unseriliased data cannot be re-serialised eg. SimpleXMLElements
+		try {
+
+			if ( $this->recurse_objects ) {
+
+				// If we've reached the maximum recursion level, short circuit
+				if ( 0 !== $this->max_recursion && $recursion_level >= $this->max_recursion ) {
+					return $data;
+				}
+
+				if ( is_array( $data ) || is_object( $data ) ) {
+					// If we've seen this exact object or array before, short circuit
+					if ( in_array( $data, $visited_data, true ) ) {
+						return $data; // Avoid infinite loops when there's a cycle
+					}
+					// Add this data to the list of
+					$visited_data[] = $data;
+				}
+			}
+
+			try {
+				// The error suppression operator is not enough in some cases, so we disable
+				// reporting of notices and warnings as well.
+				$error_reporting = error_reporting();
+				error_reporting( $error_reporting & ~E_NOTICE & ~E_WARNING );
+				$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
+				error_reporting( $error_reporting );
+
+			} catch ( \TypeError $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.typeerrorFound
+				// This type error is thrown when trying to unserialize a string that does not fit the
+				// type declarations of the properties it is supposed to fill.
+				// This type checking was introduced with PHP 8.1.
+				// See https://github.com/wp-cli/search-replace-command/issues/191
+				\WP_CLI::warning(
+					sprintf(
+						'Skipping an inconvertible serialized object: "%s", replacements might not be complete. Reason: %s.',
+						$data,
+						$exception->getMessage()
+					)
+				);
+
+				throw new \Exception( $exception->getMessage(), $exception->getCode(), $exception );
+			}
+
+			if ( false !== $unserialized ) {
+				$data = $this->run_search_replace_recursively( $unserialized, $old, $new, true, $logging, $recursion_level + 1 );
+			} elseif ( is_array( $data ) ) {
+				$keys = array_keys( $data );
+				foreach ( $keys as $key ) {
+					$data[ $key ] = $this->run_search_replace_recursively( $data[ $key ], $old, $new, false, $logging, $recursion_level + 1, $visited_data );
+				}
+			} elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
+				if ( $data instanceof \__PHP_Incomplete_Class ) {
+					$array = new \ArrayObject( $data );
+					\WP_CLI::warning(
+						sprintf(
+							'Skipping an uninitialized class "%s", replacements might not be complete.',
+							$array['__PHP_Incomplete_Class_Name']
+						)
+					);
+				} else {
+					try {
+						foreach ( $data as $key => $value ) {
+							$data->$key = $this->run_search_replace_recursively( $value, $old, $new, false, $logging, $recursion_level + 1, $visited_data );
+						}
+					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
+						// This error is thrown when the object that was unserialized cannot be iterated upon.
+						// The most notable reason is an empty `mysqli_result` object which is then considered to be "already closed".
+						// See https://github.com/wp-cli/search-replace-command/pull/192#discussion_r1412310179
+						\WP_CLI::warning(
+							sprintf(
+								'Skipping an inconvertible serialized object of type "%s", replacements might not be complete. Reason: %s.',
+								is_object( $data ) ? get_class( $data ) : gettype( $data ),
+								$exception->getMessage()
+							)
+						);
+
+						throw new \Exception( $exception->getMessage(), $exception->getCode(), $exception );
+					}
+				}
+			} elseif ( is_string( $data ) ) {
+				if ( $logging ) {
+					$old_data = $data;
+				}
+				if ( $this->regex ) {
+					$search_regex  = $this->regex_delimiter;
+					$search_regex .= $old;
+					$search_regex .= $this->regex_delimiter;
+					$search_regex .= $this->regex_flags;
+
+					$result = preg_replace( $search_regex, $new, $data, $this->regex_limit );
+					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
+						\WP_CLI::warning(
+							sprintf(
+								'The provided regular expression threw a PCRE error - %s',
+								$this->preg_error_message( $result )
+							)
+						);
+					}
+					$data = $result;
+				} else {
+					$data = str_replace( $old, $new, $data );
+				}
+				if ( $logging && $old_data !== $data ) {
+					$this->replacer_log_data[] = $old_data;
+				}
+			}
+
+			if ( $serialised ) {
+				return serialize( $data );
+			}
+		} catch ( \Exception $exception ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Intentionally empty.
+
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Gets existing data saved for logging.
+	 *
+	 * @return string[] Array of data strings, prior to replacements.
+	 */
+	private function get_replacer_log_data() {
+		return $this->replacer_log_data;
+	}
+
+	/**
+	 * Clears data stored for logging.
+	 */
+	private function clear_replacer_log_data() {
+		$this->replacer_log_data = array();
+	}
+
+	/**
+	 * Get the PCRE error constant name from an error value.
+	 *
+	 * @param  integer $error Error code.
+	 * @return string         Error constant name.
+	 */
+	private function preg_error_message( $error ) {
+		static $error_names = null;
+
+		if ( null === $error_names ) {
+			$definitions    = get_defined_constants( true );
+			$pcre_constants = array_key_exists( 'pcre', $definitions )
+				? $definitions['pcre']
+				: array();
+			$error_names    = array_flip( $pcre_constants );
+		}
+
+		return isset( $error_names[ $error ] )
+			? $error_names[ $error ]
+			: '<unknown error>';
 	}
 }

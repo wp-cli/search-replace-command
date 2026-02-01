@@ -5,6 +5,10 @@ namespace WP_CLI;
 use ArrayObject;
 use Exception;
 
+/**
+ * @deprecated 2.2.0 This class is deprecated. Its functionality has been moved into Search_Replace_Command.
+ *                   The class is kept for backward compatibility but should not be used in new code.
+ */
 class SearchReplacer {
 
 	/**
