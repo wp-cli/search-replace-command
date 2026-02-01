@@ -1200,7 +1200,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @return array|string The original data with all elements replaced as needed.
 	 */
 	private function run_search_replace_recursively( $data, $old, $new, $serialised = false, $logging = false, $recursion_level = 0, $visited_data = array() ) {
-		// some unseriliased data cannot be re-serialised eg. SimpleXMLElements
+		// some unserialized data cannot be re-serialized eg. SimpleXMLElements
 		try {
 
 			if ( $this->recurse_objects ) {
