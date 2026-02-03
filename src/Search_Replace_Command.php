@@ -1225,7 +1225,21 @@ class Search_Replace_Command extends WP_CLI_Command {
 				// reporting of notices and warnings as well.
 				$error_reporting = error_reporting();
 				error_reporting( $error_reporting & ~E_NOTICE & ~E_WARNING );
-				$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
+				$unserialized = false;
+				if ( is_string( $data ) ) {
+					// Prevent unsafe object instantiation from attacker-controlled serialized data.
+					if ( defined( 'PHP_VERSION_ID' ) && PHP_VERSION_ID >= 70000 ) {
+						$unserialized = @unserialize(
+							$data,
+							array(
+								'allowed_classes' => false,
+							)
+						);
+					} else {
+						// Fallback for older PHP versions without the allowed_classes option.
+						$unserialized = @unserialize( $data );
+					}
+				}
 				error_reporting( $error_reporting );
 
 			} catch ( \TypeError $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.typeerrorFound
