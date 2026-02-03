@@ -1132,7 +1132,7 @@ Feature: Do global search/replace
     When I try `wp search-replace mysqli_result stdClass`
     Then STDERR should contain:
       """
-      Warning: WP_CLI\SearchReplacer::run_recursively(): Couldn't fetch mysqli_result
+      Search_Replace_Command::run_search_replace_recursively(): Couldn't fetch mysqli_result
       """
     And STDOUT should contain:
       """
