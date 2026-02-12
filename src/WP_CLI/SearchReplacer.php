@@ -58,6 +58,13 @@ class SearchReplacer {
 	private $max_recursion;
 
 	/**
+	 * @var callable|string|bool Callback function or method to be invoked during search/replace operations.
+	 * If set to a callable or a string (function name), this will be called for each replacement.
+	 * If false, no callback is used.
+	 */
+	private $callback;
+
+	/**
 	 * @param string  $from            String we're looking to replace.
 	 * @param string  $to              What we want it to be replaced with.
 	 * @param bool    $recurse_objects Should objects be recursively replaced?
@@ -66,8 +73,9 @@ class SearchReplacer {
 	 * @param string  $regex_delimiter Delimiter for regular expression.
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
+	 * @param callable|string|false $callback The callback function to invoke.
 	 */
-	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
+	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1, $callback = false ) {
 		$this->from            = $from;
 		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
@@ -76,6 +84,7 @@ class SearchReplacer {
 		$this->regex_delimiter = $regex_delimiter;
 		$this->regex_limit     = $regex_limit;
 		$this->logging         = $logging;
+		$this->callback        = $callback;
 		$this->clear_log_data();
 
 		// Get the XDebug nesting level. Will be zero (no limit) if no value is set
@@ -88,19 +97,28 @@ class SearchReplacer {
 	 * Ignores any serialized objects unless $recurse_objects is set to true.
 	 *
 	 * @param array|string $data            The data to operate on.
+	 * @param array        $opts            Additional options for the replacement passed through to the callback
+	 *  An array like: ['table' => $table, 'col' => $col, 'key' => $primary_keys]
 	 * @param bool         $serialised      Does the value of $data need to be unserialized?
+	 * @param array        $opts            Options for the callback.
 	 *
-	 * @return array       The original array with all elements replaced as needed.
+	 * @return array|string The original array with all elements replaced as needed.
 	 */
-	public function run( $data, $serialised = false ) {
-		return $this->run_recursively( $data, $serialised );
+	public function run( $data, $serialised = false, $opts = [] ) {
+		return $this->run_recursively( $data, $serialised, 0, [], $opts );
 	}
 
 	/**
-	 * @param int          $recursion_level Current recursion depth within the original data.
-	 * @param array        $visited_data    Data that has been seen in previous recursion iterations.
+	 * The main workhorse of the run method.
+	 *
+	 * @param mixed    $data            The data to operate on.
+	 * @param bool     $serialised      Does the value of $data need to be unserialized?
+	 * @param int      $recursion_level Current recursion depth within the original data.
+	 * @param array    $visited_data    Data that has been seen in previous recursion iterations.
+	 * @param array    $opts            Options for the callback.
+	 * @return mixed The original data with all elements replaced as needed.
 	 */
-	private function run_recursively( $data, $serialised, $recursion_level = 0, $visited_data = array() ) {
+	private function run_recursively( $data, $serialised, $recursion_level = 0, $visited_data = array(), $opts = [] ) {
 
 		// some unseriliased data cannot be re-serialised eg. SimpleXMLElements
 		try {
@@ -192,7 +210,11 @@ class SearchReplacer {
 					$search_regex .= $this->regex_delimiter;
 					$search_regex .= $this->regex_flags;
 
-					$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+					if ( $this->callback ) {
+						$result = \call_user_func( $this->callback, $data, $this->to, $search_regex, $opts );
+					} else {
+						$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+					}
 					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
 						\WP_CLI::warning(
 							sprintf(
@@ -201,10 +223,29 @@ class SearchReplacer {
 							)
 						);
 					}
-					$data = $result;
+				} elseif ( $this->callback ) {
+					if ( strpos( $data, $this->from ) !== false ) {
+						$result = \call_user_func( $this->callback, $data, $this->to, null, $opts );
+					} else {
+						// We can skip calling the function here. It must still be set so we don't remove text.
+						$result = $data;
+					}
 				} else {
-					$data = str_replace( $this->from, $this->to, $data );
+					$result = str_replace( $this->from, $this->to, $data );
 				}
+
+				if ( $this->callback ) {
+					if ( false === $result ) {
+						\WP_CLI::error( 'The callback function returned false. Stopping operation.' );
+					} elseif ( is_wp_error( $result ) ) {
+						$message = $result->get_error_message();
+						\WP_CLI::error( 'The callback function threw an error. Stopping operation. ' . $message );
+					} elseif ( ! is_string( $result ) ) {
+						\WP_CLI::error( 'The callback function did not return a string. Stopping operation.' );
+					}
+				}
+
+				$data = $result;
 				if ( $this->logging && $old_data !== $data ) {
 					$this->log_data[] = $old_data;
 				}
@@ -238,7 +279,7 @@ class SearchReplacer {
 	/**
 	 * Get the PCRE error constant name from an error value.
 	 *
-	 * @param  integer $error Error code.
+	 * @param  int|null $error Error code.
 	 * @return string         Error constant name.
 	 */
 	private function preg_error_message( $error ) {
