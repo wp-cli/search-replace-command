@@ -939,7 +939,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @param string $str The string to encode.
 	 * @return string The JSON-encoded string without surrounding quotes, or the original string on failure.
 	 */
-	private static function json_encode_strip_quotes( $str ) {
+	public static function json_encode_strip_quotes( $str ) {
 		$encoded = json_encode( $str ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
 		return false !== $encoded ? substr( $encoded, 1, -1 ) : $str;
 	}
