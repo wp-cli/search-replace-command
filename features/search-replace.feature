@@ -244,13 +244,26 @@ Feature: Do global search/replace
     And a create-post-with-json-content.php file:
       """
       <?php
-      $post_id = wp_insert_post( [
-          'post_type'    => 'post',
-          'post_status'  => 'publish',
-          'post_title'   => 'Font Test',
-          'post_content' => json_encode( [ 'src' => 'http://example.com/wp-content/uploads/fonts/test.woff2', 'fontWeight' => '400' ] ),
-      ] );
-      echo $post_id;
+      // Insert directly via $wpdb to preserve backslash-escaped JSON (as WordPress font face data is stored).
+      global $wpdb;
+      $wpdb->insert(
+          $wpdb->posts,
+          [
+              'post_type'             => 'post',
+              'post_status'           => 'publish',
+              'post_title'            => 'Font Test',
+              'post_content'          => '{"src":"http:\/\/example.com\/wp-content\/uploads\/fonts\/test.woff2","fontWeight":"400"}',
+              'post_author'           => 1,
+              'post_date'             => '2024-01-01 00:00:00',
+              'post_date_gmt'         => '2024-01-01 00:00:00',
+              'post_modified'         => '2024-01-01 00:00:00',
+              'post_modified_gmt'     => '2024-01-01 00:00:00',
+              'to_ping'               => '',
+              'pinged'                => '',
+              'post_content_filtered' => '',
+          ]
+      );
+      echo $wpdb->insert_id;
       """
     And I run `wp eval-file create-post-with-json-content.php`
     Then save STDOUT as {POST_ID}
