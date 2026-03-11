@@ -239,6 +239,45 @@ Feature: Do global search/replace
       | header_image_data | {"url":"https:\/\/example.com\/foo.jpg"} |
 
   @require-mysql
+  Scenario: Search and replace handles JSON-encoded URLs in post content
+    Given a WP install
+
+    When I run `wp post create --post_content='{"src":"http:\/\/example.com\/wp-content\/uploads\/fonts\/test.woff2","fontWeight":"400"}' --post_status=publish --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      http:\/\/example.com
+      """
+
+    When I run `wp search-replace 'http://example.com' 'http://newdomain.com' wp_posts --include-columns=post_content`
+    Then STDOUT should be a table containing rows:
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | SQL  |
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      http:\/\/newdomain.com
+      """
+    And STDOUT should not contain:
+      """
+      http:\/\/example.com
+      """
+
+    When I run `wp search-replace 'http://newdomain.com' 'http://example.com' wp_posts --include-columns=post_content --precise`
+    Then STDOUT should be a table containing rows:
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | PHP  |
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      http:\/\/example.com
+      """
+
+  @require-mysql
   Scenario: Search and replace with quoted strings
     Given a WP install
 
