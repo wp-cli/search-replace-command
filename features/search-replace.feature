@@ -241,31 +241,8 @@ Feature: Do global search/replace
   @require-mysql
   Scenario: Search and replace handles JSON-encoded URLs in post content
     Given a WP install
-    And a create-post-with-json-content.php file:
-      """
-      <?php
-      // Insert directly via $wpdb to preserve backslash-escaped JSON (as WordPress font face data is stored).
-      global $wpdb;
-      $wpdb->insert(
-          $wpdb->posts,
-          [
-              'post_type'             => 'post',
-              'post_status'           => 'publish',
-              'post_title'            => 'Font Test',
-              'post_content'          => '{"src":"http:\/\/example.com\/wp-content\/uploads\/fonts\/test.woff2","fontWeight":"400"}',
-              'post_author'           => 1,
-              'post_date'             => '2024-01-01 00:00:00',
-              'post_date_gmt'         => '2024-01-01 00:00:00',
-              'post_modified'         => '2024-01-01 00:00:00',
-              'post_modified_gmt'     => '2024-01-01 00:00:00',
-              'to_ping'               => '',
-              'pinged'                => '',
-              'post_content_filtered' => '',
-          ]
-      );
-      echo $wpdb->insert_id;
-      """
-    And I run `wp eval-file create-post-with-json-content.php`
+
+    When I run `wp post create --post_content='{"src":"http:\/\/example.com\/wp-content\/uploads\/fonts\/test.woff2","fontWeight":"400"}' --post_status=publish --porcelain`
     Then save STDOUT as {POST_ID}
 
     When I run `wp post get {POST_ID} --field=post_content`
