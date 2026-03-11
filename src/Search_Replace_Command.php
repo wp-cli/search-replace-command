@@ -654,26 +654,36 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$col_sql   = self::esc_sql_ident( $col );
 		$old_json  = self::json_encode_strip_quotes( $old );
 		$new_json  = self::json_encode_strip_quotes( $new );
+		$has_json  = $old_json !== $old;
+
 		if ( $this->dry_run ) {
 			if ( $this->log_handle ) {
 				$count = $this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+				if ( $has_json ) {
+					$count += $this->log_sql_diff( $col, $primary_keys, $table, $old_json, $new_json );
+				}
+			} elseif ( $has_json ) {
+				// Single query with OR to avoid counting rows that match both forms twice.
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s OR $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%', '%' . self::esc_like( $old_json ) . '%' ) );
 			} else {
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
-				if ( $old_json !== $old ) {
-					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-					$count += (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old_json ) . '%' ) );
-				}
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
 			}
 		} else {
 			if ( $this->log_handle ) {
 				$this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+				if ( $has_json ) {
+					$this->log_sql_diff( $col, $primary_keys, $table, $old_json, $new_json );
+				}
 			}
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
-			if ( $old_json !== $old ) {
+			if ( $has_json ) {
+				// Single nested REPLACE handles both plain and JSON-encoded forms in one pass.
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count += (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old_json, $new_json ) );
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE(REPLACE($col_sql, %s, %s), %s, %s);", $old, $new, $old_json, $new_json ) );
+			} else {
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
 			}
 		}
 
