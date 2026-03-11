@@ -1422,9 +1422,9 @@ Feature: Do global search/replace
     And I run `wp option set test_url 'Visit http://example.com for more'`
 
     When I run `wp search-replace http://example.com http://example.org --precise`
-    Then STDOUT should contain:
+    Then STDERR should contain:
       """
-      Updating
+      Processing
       """
 
   @require-mysql
@@ -1437,9 +1437,9 @@ Feature: Do global search/replace
       """
       Checking:
       """
-    And STDOUT should not contain:
+    And STDERR should not contain:
       """
-      Updating
+      Processing
       """
 
   @require-mysql
