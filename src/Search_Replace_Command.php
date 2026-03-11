@@ -738,7 +738,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$progress = \WP_CLI\Utils\make_progress_bar( sprintf( 'Processing %s.%s', $table, $col ), $total_rows );
 				}
 			}
-			
 			foreach ( $rows as $keys ) {
 				$where_sql = '';
 				foreach ( (array) $keys as $k => $v ) {
