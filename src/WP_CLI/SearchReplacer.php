@@ -18,6 +18,16 @@ class SearchReplacer {
 	private $to;
 
 	/**
+	 * @var string
+	 */
+	private $from_json;
+
+	/**
+	 * @var string
+	 */
+	private $to_json;
+
+	/**
 	 * @var bool
 	 */
 	private $recurse_objects;
@@ -77,6 +87,12 @@ class SearchReplacer {
 		$this->regex_limit     = $regex_limit;
 		$this->logging         = $logging;
 		$this->clear_log_data();
+
+		// Compute JSON-encoded versions (stripping outer quotes) for handling raw JSON values in the database.
+		$from_encoded    = json_encode( $from ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		$this->from_json = false !== $from_encoded ? substr( $from_encoded, 1, -1 ) : $from;
+		$to_encoded      = json_encode( $to ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		$this->to_json   = false !== $to_encoded ? substr( $to_encoded, 1, -1 ) : $to;
 
 		// Get the XDebug nesting level. Will be zero (no limit) if no value is set
 		$this->max_recursion = intval( ini_get( 'xdebug.max_nesting_level' ) );
@@ -204,6 +220,9 @@ class SearchReplacer {
 					$data = $result;
 				} else {
 					$data = str_replace( $this->from, $this->to, $data );
+					if ( $this->from_json !== $this->from ) {
+						$data = str_replace( $this->from_json, $this->to_json, $data );
+					}
 				}
 				if ( $this->logging && $old_data !== $data ) {
 					$this->log_data[] = $old_data;

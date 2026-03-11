@@ -652,12 +652,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );
+		$old_json  = self::json_encode_strip_quotes( $old );
+		$new_json  = self::json_encode_strip_quotes( $new );
 		if ( $this->dry_run ) {
 			if ( $this->log_handle ) {
 				$count = $this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
 			} else {
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 				$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
+				if ( $old_json !== $old ) {
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+					$count += (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old_json ) . '%' ) );
+				}
 			}
 		} else {
 			if ( $this->log_handle ) {
@@ -665,6 +671,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
+			if ( $old_json !== $old ) {
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count += (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old_json, $new_json ) );
+			}
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -686,8 +696,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$base_key_condition = '';
 		$where_key          = '';
 		if ( ! $this->regex ) {
+			$old_json           = self::json_encode_strip_quotes( $old );
 			$base_key_condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
-			$where_key          = "WHERE $base_key_condition";
+			if ( $old_json !== $old ) {
+				$base_key_condition = "( $base_key_condition OR $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old_json ) . '%' ) . ' )';
+			}
+			$where_key = "WHERE $base_key_condition";
 		}
 
 		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
@@ -915,6 +929,19 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		return $old;
+	}
+
+	/**
+	 * Returns the JSON-encoded representation of a string with the surrounding quotes stripped.
+	 * This is used to also handle values stored as raw JSON in the database (e.g. WordPress font data).
+	 * Returns the original string unchanged if JSON encoding fails (e.g. invalid UTF-8).
+	 *
+	 * @param string $str The string to encode.
+	 * @return string The JSON-encoded string without surrounding quotes, or the original string on failure.
+	 */
+	private static function json_encode_strip_quotes( $str ) {
+		$encoded = json_encode( $str ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		return false !== $encoded ? substr( $encoded, 1, -1 ) : $str;
 	}
 
 	/**
