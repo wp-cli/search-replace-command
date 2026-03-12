@@ -820,15 +820,18 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$col_sql   = self::esc_sql_ident( $col );
 
 		$base_key_condition = $additional_where;
+		$where_key          = '';
+
 		if ( ! $this->regex ) {
 			$old_json           = self::json_encode_strip_quotes( $old );
 			$base_key_condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
 			if ( $old_json !== $old ) {
 				$base_key_condition = "( $base_key_condition OR $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old_json ) . '%' ) . ' )';
 			}
+
+			$where_key = $base_key_condition ? ' WHERE ' . implode( ' AND ', $base_key_condition ) : '';
 		}
 
-		$where_key            = $base_key_condition ? ' WHERE ' . implode( ' AND ', $base_key_condition ) : '';
 		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
 		$primary_keys_sql     = implode( ',', $escaped_primary_keys );
 		$order_by_keys        = array_map(
