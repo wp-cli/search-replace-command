@@ -823,7 +823,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$where_key          = '';
 
 		if ( ! $this->regex ) {
-			$old_json           = self::json_encode_strip_quotes( $old );
+			$old_json  = self::json_encode_strip_quotes( $old );
 			$condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
 			if ( $old_json !== $old ) {
 				$condition = "( $condition OR $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old_json ) . '%' ) . ' )';
