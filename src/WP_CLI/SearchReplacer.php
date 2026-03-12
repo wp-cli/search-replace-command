@@ -247,7 +247,7 @@ class SearchReplacer {
 				} else {
 					$result = str_replace( $this->from, $this->to, $data );
 					if ( $this->from_json !== $this->from ) {
-						$result = str_replace( $this->from_json, $this->to_json, $data );
+						$result = str_replace( $this->from_json, $this->to_json, $result );
 					}
 				}
 
