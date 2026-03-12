@@ -598,7 +598,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					WP_CLI::log( sprintf( 'Checking: %s.%s', $table, $col ) );
 				}
 
-				$serial_row = false;
+				$serial_row = null;
 
 				if ( ! $php_only && ! $this->regex ) {
 					$col_sql          = self::esc_sql_ident( $col );
