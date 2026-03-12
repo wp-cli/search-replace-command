@@ -18,6 +18,16 @@ class SearchReplacer {
 	private $to;
 
 	/**
+	 * @var string
+	 */
+	private $from_json;
+
+	/**
+	 * @var string
+	 */
+	private $to_json;
+
+	/**
 	 * @var bool
 	 */
 	private $recurse_objects;
@@ -86,6 +96,10 @@ class SearchReplacer {
 		$this->logging         = $logging;
 		$this->callback        = $callback;
 		$this->clear_log_data();
+
+		// Compute JSON-encoded versions (stripping outer quotes) for handling raw JSON values in the database.
+		$this->from_json = \Search_Replace_Command::json_encode_strip_quotes( $from );
+		$this->to_json   = \Search_Replace_Command::json_encode_strip_quotes( $to );
 
 		// Get the XDebug nesting level. Will be zero (no limit) if no value is set
 		$this->max_recursion = intval( ini_get( 'xdebug.max_nesting_level' ) );
@@ -232,6 +246,9 @@ class SearchReplacer {
 					}
 				} else {
 					$result = str_replace( $this->from, $this->to, $data );
+					if ( $this->from_json !== $this->from ) {
+						$result = str_replace( $this->from_json, $this->to_json, $data );
+					}
 				}
 
 				if ( $this->callback ) {

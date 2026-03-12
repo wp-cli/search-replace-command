@@ -150,15 +150,23 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * <old>
+	 * [<old>]
 	 * : A string to search for within the database.
 	 *
-	 * <new>
+	 * [<new>]
 	 * : Replace instances of the first string with this new string.
 	 *
 	 * [<table>...]
 	 * : List of database tables to restrict the replacement to. Wildcards are
 	 * supported, e.g. `'wp_*options'` or `'wp_post*'`.
+	 *
+	 * [--old=<value>]
+	 * : An alternative way to specify the search string. Use this when the
+	 * search string starts with '--' (e.g., --old='--some-text').
+	 *
+	 * [--new=<value>]
+	 * : An alternative way to specify the replacement string. Use this when the
+	 * replacement string starts with '--' (e.g., --new='--other-text').
 	 *
 	 * [--dry-run]
 	 * : Run the entire search/replace operation and show report, but don't save
@@ -210,7 +218,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Force the use of PHP (instead of SQL) for all columns. By default, the command
 	 * uses fast SQL queries, but automatically switches to PHP for columns containing
 	 * serialized data. Use this flag to ensure PHP processes all columns, which is
-	 * slower but handles complex serialized data structures more reliably.      * If --callback is specified, --precise is inferred.
+	 * slower but handles complex serialized data structures more reliably.     * If --callback is specified, --precise is inferred.
 	 *
 	 * [--recurse-objects]
 	 * : Enable recursing into objects to replace strings. Defaults to true;
@@ -282,6 +290,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     # Search/replace to a SQL file without transforming the database
 	 *     $ wp search-replace foo bar --export=database.sql
 	 *
+	 *     # Search/replace string containing hyphens
+	 *     $ wp search-replace --old='--old-string' --new='new-string'
+	 *
 	 *     # Use precise mode for complex serialized data
 	 *     $ wp search-replace 'oldurl.com' 'newurl.com' --precise
 	 *
@@ -294,21 +305,57 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     fi
 	 *
 	 * @param array<string> $args Positional arguments.
-	 * @param array{'dry-run'?: bool, 'network'?: bool, 'all-tables-with-prefix'?: bool, 'all-tables'?: bool, 'export'?: string, 'export_insert_size'?: string, 'skip-tables'?: string, 'skip-columns'?: string, 'include-columns'?: string, 'precise'?: bool, 'recurse-objects'?: bool, 'verbose'?: bool, 'regex'?: bool, 'regex-flags'?: string, 'regex-delimiter'?: string, 'regex-limit'?: string, 'format': string, 'report'?: bool, 'report-changed-only'?: bool, 'log'?: string, 'before_context'?: string, 'after_context'?: string} $assoc_args Associative arguments.
+	 * @param array{'old'?: string, 'new'?: string, 'dry-run'?: bool, 'network'?: bool, 'all-tables-with-prefix'?: bool, 'all-tables'?: bool, 'export'?: string, 'export_insert_size'?: string, 'skip-tables'?: string, 'skip-columns'?: string, 'include-columns'?: string, 'precise'?: bool, 'recurse-objects'?: bool, 'verbose'?: bool, 'regex'?: bool, 'regex-flags'?: string, 'regex-delimiter'?: string, 'regex-limit'?: string, 'format': string, 'report'?: bool, 'report-changed-only'?: bool, 'log'?: string, 'before_context'?: string, 'after_context'?: string} $assoc_args Associative arguments.
 	 */
 	public function __invoke( $args, $assoc_args ) {
 		global $wpdb;
-		$old                     = array_shift( $args );
-		$new                     = array_shift( $args );
-		$total                   = 0;
-		$report                  = array();
-		$this->dry_run           = Utils\get_flag_value( $assoc_args, 'dry-run', false );
-		$php_only                = Utils\get_flag_value( $assoc_args, 'precise', false );
-		$this->recurse_objects   = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
-		$this->callback          = Utils\get_flag_value( $assoc_args, 'callback', false );
-		$this->verbose           = Utils\get_flag_value( $assoc_args, 'verbose', false );
-		$this->format            = Utils\get_flag_value( $assoc_args, 'format' );
-		$this->regex             = Utils\get_flag_value( $assoc_args, 'regex', false );
+
+		// Support --old and --new flags as an alternative to positional arguments.
+		// This allows users to search/replace strings that start with '--'.
+		$old_flag = Utils\get_flag_value( $assoc_args, 'old' );
+		$new_flag = Utils\get_flag_value( $assoc_args, 'new' );
+
+		// Check if both flags and positional arguments are provided.
+		$both_flags_provided = null !== $old_flag && null !== $new_flag;
+		$has_positional_args = ! empty( $args );
+		if ( $both_flags_provided && $has_positional_args ) {
+			WP_CLI::error( 'Cannot use both positional arguments and --old/--new flags. Please use one method or the other.' );
+		}
+
+		// Determine old and new values.
+		$old = null !== $old_flag ? $old_flag : array_shift( $args );
+		$new = null !== $new_flag ? $new_flag : array_shift( $args );
+
+		// Validate that both old and new values are provided and not empty.
+		if ( null === $old || null === $new || '' === $old ) {
+			$missing = array();
+			if ( null === $old || '' === $old ) {
+				$missing[] = '<old>';
+			}
+			// new value is allowed to be empty.
+			if ( null === $new ) {
+				$missing[] = '<new>';
+			}
+			$error_msg = count( $missing ) === 2
+				? 'Please provide both <old> and <new> arguments.'
+				: sprintf( 'Please provide the %s argument.', $missing[0] );
+
+			$error_msg .= "\n\nNote: If your search or replacement string starts with '--', use the flag syntax instead:"
+				. "\n  wp search-replace --old='--text' --new='replacement'";
+
+			WP_CLI::error( $error_msg );
+		}
+
+		$total                 = 0;
+		$report                = array();
+		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run', false );
+		$php_only              = Utils\get_flag_value( $assoc_args, 'precise', false );
+		$this->recurse_objects = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
+		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose', false );
+		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
+		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
+		$this->callback        = Utils\get_flag_value( $assoc_args, 'callback', false );
+
 		$default_regex_delimiter = false;
 
 		if ( null !== $this->regex ) {
@@ -708,21 +755,41 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );
+		$old_json  = self::json_encode_strip_quotes( $old );
+		$new_json  = self::json_encode_strip_quotes( $new );
+		$has_json  = $old_json !== $old;
+
 		if ( $this->dry_run ) {
 			if ( $this->log_handle ) {
 				$count = $this->log_sql_diff( $col, $primary_keys, $table, $old, $new, $clauses );
+				if ( $has_json ) {
+					$count += $this->log_sql_diff( $col, $primary_keys, $table, $old_json, $new_json, $clauses );
+				}
+			} elseif ( $has_json ) {
+				// Single query with OR to avoid counting rows that match both forms twice.
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s OR $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%', '%' . self::esc_like( $old_json ) . '%' ) );
 			} else {
 				$where = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s $where;", '%' . self::esc_like( $old ) . '%' ) );
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s $where;", '%' . self::esc_like( $old ) . '%' ) );
 			}
 		} else {
 			if ( $this->log_handle ) {
 				$this->log_sql_diff( $col, $primary_keys, $table, $old, $new, $clauses );
+				if ( $has_json ) {
+					$this->log_sql_diff( $col, $primary_keys, $table, $old_json, $new_json, $clauses );
+				}
 			}
 			$where = $clauses ? ' WHERE ' . implode( ' AND ', $clauses ) : '';
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s) $where;", $old, $new ) );
+			if ( $has_json ) {
+				// Single nested REPLACE handles both plain and JSON-encoded forms in one pass.
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE(REPLACE($col_sql, %s, %s), %s, %s) $where;", $old, $new, $old_json, $new_json ) );
+			} else {
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s) $where;", $old, $new ) );
+			}
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -754,7 +821,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$base_key_condition = $additional_where;
 		if ( ! $this->regex ) {
-			$base_key_condition[] = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
+			$old_json           = self::json_encode_strip_quotes( $old );
+			$base_key_condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
+			if ( $old_json !== $old ) {
+				$base_key_condition = "( $base_key_condition OR $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old_json ) . '%' ) . ' )';
+			}
 		}
 
 		$where_key            = $base_key_condition ? ' WHERE ' . implode( ' AND ', $base_key_condition ) : '';
@@ -907,16 +978,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			if ( ( 0 === $index % $export_insert_size && $index > 0 ) || $index === $count ) {
 				$sql .= ";\n";
 
-				if ( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
-					// since 4.8.3
-
-					// @phpstan-ignore method.nonObject
-					$sql = $wpdb->remove_placeholder_escape( $wpdb->prepare( $sql, array_values( $values ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- verified inputs above
-				} else {
-					// 4.8.2 or less
-					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- verified inputs above
-					$sql = $wpdb->prepare( $sql, array_values( $values ) );
-				}
+				$sql = $wpdb->remove_placeholder_escape( $wpdb->prepare( $sql, array_values( $values ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- verified inputs above
 
 				fwrite( $this->export_handle, $sql );
 
@@ -1002,6 +1064,19 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		return $old;
+	}
+
+	/**
+	 * Returns the JSON-encoded representation of a string with the surrounding quotes stripped.
+	 * This is used to also handle values stored as raw JSON in the database (e.g. WordPress font data).
+	 * Returns the original string unchanged if JSON encoding fails (e.g. invalid UTF-8).
+	 *
+	 * @param string $str The string to encode.
+	 * @return string The JSON-encoded string without surrounding quotes, or the original string on failure.
+	 */
+	public static function json_encode_strip_quotes( $str ) {
+		$encoded = json_encode( $str ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		return false !== $encoded ? substr( $encoded, 1, -1 ) : $str;
 	}
 
 	/**

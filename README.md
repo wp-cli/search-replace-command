@@ -10,7 +10,7 @@ Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contr
 ## Using
 
 ~~~
-wp search-replace <old> <new> [<table>...] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-tables=<tables>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--regex-delimiter=<regex-delimiter>] [--regex-limit=<regex-limit>] [--format=<format>] [--report] [--report-changed-only] [--log[=<file>]] [--before_context=<num>] [--after_context=<num>]
+wp search-replace [<old>] [<new>] [<table>...] [--old=<value>] [--new=<value>] [--dry-run] [--network] [--all-tables-with-prefix] [--all-tables] [--export[=<file>]] [--export_insert_size=<rows>] [--skip-tables=<tables>] [--skip-columns=<columns>] [--include-columns=<columns>] [--precise] [--recurse-objects] [--verbose] [--regex] [--regex-flags=<regex-flags>] [--regex-delimiter=<regex-delimiter>] [--regex-limit=<regex-limit>] [--format=<format>] [--report] [--report-changed-only] [--log[=<file>]] [--before_context=<num>] [--after_context=<num>]
 ~~~
 
 Searches through all rows in a selection of tables and replaces
@@ -25,15 +25,23 @@ change primary key values.
 
 **OPTIONS**
 
-	<old>
+	[<old>]
 		A string to search for within the database.
 
-	<new>
+	[<new>]
 		Replace instances of the first string with this new string.
 
 	[<table>...]
 		List of database tables to restrict the replacement to. Wildcards are
 		supported, e.g. `'wp_*options'` or `'wp_post*'`.
+
+	[--old=<value>]
+		An alternative way to specify the search string. Use this when the
+		search string starts with '--' (e.g., --old='--some-text').
+
+	[--new=<value>]
+		An alternative way to specify the replacement string. Use this when the
+		replacement string starts with '--' (e.g., --new='--other-text').
 
 	[--dry-run]
 		Run the entire search/replace operation and show report, but don't save
@@ -140,6 +148,9 @@ change primary key values.
 
     # Search/replace to a SQL file without transforming the database
     $ wp search-replace foo bar --export=database.sql
+
+    # Search/replace string containing hyphens
+    $ wp search-replace --old='--old-string' --new='new-string'
 
     # Use precise mode for complex serialized data
     $ wp search-replace 'oldurl.com' 'newurl.com' --precise
