@@ -179,11 +179,11 @@ class SearchReplacer {
 			}
 
 			if ( false !== $unserialized ) {
-				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1 );
+				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1, $visited_data, $opts );
 			} elseif ( is_array( $data ) ) {
 				$keys = array_keys( $data );
 				foreach ( $keys as $key ) {
-					$data[ $key ] = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
+					$data[ $key ] = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data, $opts );
 				}
 			} elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
 				if ( $data instanceof \__PHP_Incomplete_Class ) {
@@ -197,7 +197,7 @@ class SearchReplacer {
 				} else {
 					try {
 						foreach ( $data as $key => $value ) {
-							$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+							$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data, $opts );
 						}
 					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
 						// This error is thrown when the object that was unserialized cannot be iterated upon.
