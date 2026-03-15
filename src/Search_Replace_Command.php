@@ -465,12 +465,24 @@ class Search_Replace_Command extends WP_CLI_Command {
 		// Get table names based on leftover $args or supplied $assoc_args
 		$tables = Utils\wp_get_table_names( $args, $assoc_args );
 
+		// Identify views so they can be skipped; views are dynamic and cannot be directly modified.
+		$views_args               = $assoc_args;
+		$views_args['views-only'] = true;
+		$views = Utils\wp_get_table_names( $args, $views_args );
+
 		foreach ( $tables as $table ) {
 
 			foreach ( $this->skip_tables as $skip_table ) {
 				if ( fnmatch( $skip_table, $table ) ) {
 					continue 2;
 				}
+			}
+
+			if ( in_array( $table, $views, true ) ) {
+				if ( $this->report && ! $this->report_changed_only ) {
+					$report[] = array( $table, '', 'skipped (view)', '' );
+				}
+				continue;
 			}
 
 			$table_sql = self::esc_sql_ident( $table );
