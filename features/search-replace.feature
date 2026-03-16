@@ -1582,7 +1582,7 @@ Feature: Do global search/replace
     And I run `wp db query "INSERT INTO wp_readonly_test (data) VALUES ('old-value');"`
     And I run `wp db query "CREATE TRIGGER prevent_update BEFORE UPDATE ON wp_readonly_test FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Table is read-only';"`
 
-    When I try `wp search-replace old-value new-value wp_readonly_test`
+    When I try `wp search-replace old-value new-value --all-tables-with-prefix`
     Then STDERR should contain:
       """
       Error updating column 'data' in table 'wp_readonly_test'
