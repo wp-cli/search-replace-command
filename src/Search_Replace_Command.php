@@ -468,10 +468,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		// Identify views so they can be skipped; views are dynamic and cannot be directly modified.
 		$views_args               = $assoc_args;
 		$views_args['views-only'] = true;
-		$views = Utils\wp_get_table_names( $args, $views_args );
+		$views                    = Utils\wp_get_table_names( [], $views_args );
 
 		foreach ( $tables as $table ) {
-
 			foreach ( $this->skip_tables as $skip_table ) {
 				if ( fnmatch( $skip_table, $table ) ) {
 					continue 2;
