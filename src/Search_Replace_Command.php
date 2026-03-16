@@ -603,8 +603,28 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size,
 		);
 
+		// Determine which columns are actually eligible for search/replace and reporting.
+		$report_columns = array();
+		foreach ( $all_columns as $col ) {
+			// Respect --include-columns if provided.
+			if ( ! empty( $this->include_columns )
+				&& ! in_array( $col, $this->include_columns, true )
+				&& ! in_array( $table . '.' . $col, $this->include_columns, true ) ) {
+				continue;
+			}
+
+			// Skip primary key and explicitly skipped columns.
+			if ( in_array( $col, $primary_keys, true )
+				|| in_array( $col, $this->skip_columns, true )
+				|| in_array( $table . '.' . $col, $this->skip_columns, true ) ) {
+				continue;
+			}
+
+			$report_columns[] = $col;
+		}
+
 		$replacer   = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
-		$col_counts = array_fill_keys( $all_columns, 0 );
+		$col_counts = array_fill_keys( $report_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
 			WP_CLI::log( sprintf( 'Checking: %s', $table ) );
