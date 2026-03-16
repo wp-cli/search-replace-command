@@ -469,6 +469,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$views_args               = $assoc_args;
 		$views_args['views-only'] = true;
 		$views                    = Utils\wp_get_table_names( [], $views_args );
+		$view_set                 = array_flip( array_intersect( $views, $tables ) );
 
 		foreach ( $tables as $table ) {
 			foreach ( $this->skip_tables as $skip_table ) {
@@ -477,7 +478,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 			}
 
-			if ( in_array( $table, $views, true ) ) {
+			if ( isset( $view_set[ $table ] ) ) {
 				if ( $this->report && ! $this->report_changed_only ) {
 					$report[] = array( $table, '', 'skipped (view)', '' );
 				}
