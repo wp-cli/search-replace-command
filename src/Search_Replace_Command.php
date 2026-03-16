@@ -20,6 +20,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $export_handle = false;
 
 	/**
+	 * Tracks table/column combinations that have encountered update errors,
+	 * so we can avoid repeated failing updates and noisy per-row warnings.
+	 *
+	 * @var array
+	 */
+	private $update_error_columns = array();
+
+	/**
 	 * @var int
 	 */
 	private $export_insert_size;
@@ -697,6 +705,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
 			}
+			if ( $wpdb->last_error ) {
+				WP_CLI::warning( sprintf( "Error updating column '%s' in table '%s': %s", $col, $table, $wpdb->last_error ) );
+			}
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -775,14 +786,36 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$replacer->clear_log_data();
 				}
 
-				++$count;
-				if ( ! $this->dry_run ) {
+				// If we've already seen an update error for this table/column and are not in dry-run,
+				// skip further attempts to avoid repeated failures and noisy warnings.
+				if ( ! $this->dry_run && ! empty( $this->update_error_columns[ $table ][ $col ] ) ) {
+					continue;
+				}
+
+				if ( $this->dry_run ) {
+					// In dry-run mode, count replacements once a change has been detected.
+					++$count;
+				} else {
 					$update_where = array();
 					foreach ( (array) $keys as $k => $v ) {
 						$update_where[ $k ] = $v;
 					}
 
-					$wpdb->update( $table, [ $col => $value ], $update_where );
+					$result = $wpdb->update( $table, array( $col => $value ), $update_where );
+					if ( false === $result ) {
+						if ( empty( $this->update_error_columns[ $table ][ $col ] ) ) {
+							$this->update_error_columns[ $table ][ $col ] = true;
+							if ( $wpdb->last_error ) {
+								WP_CLI::warning( sprintf( "Error updating column '%s' in table '%s': %s", $col, $table, $wpdb->last_error ) );
+							} else {
+								WP_CLI::warning( sprintf( "Error updating column '%s' in table '%s'.", $col, $table ) );
+							}
+						}
+						continue;
+					}
+
+					// Only count successful updates.
+					++$count;
 				}
 			}
 
