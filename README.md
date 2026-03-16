@@ -75,11 +75,13 @@ change primary key values.
 
 	[--skip-columns=<columns>]
 		Do not perform the replacement on specific columns. Use commas to
-		specify multiple columns.
+		specify multiple columns. Table-qualified column names ("table.column")
+		are supported to apply the skip to a specific table only.
 
 	[--include-columns=<columns>]
 		Perform the replacement on specific columns. Use commas to
-		specify multiple columns.
+		specify multiple columns. Table-qualified column names ("table.column")
+		are supported to apply the inclusion to a specific table only.
 
 	[--precise]
 		Force the use of PHP (instead of SQL) for all columns. By default, the command
