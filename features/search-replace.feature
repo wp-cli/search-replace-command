@@ -69,6 +69,31 @@ Feature: Do global search/replace
       """
 
   @require-mysql
+  Scenario: Skip views during search/replace
+    Given a WP install
+    And I run `wp db query "CREATE VIEW wp_posts_view AS SELECT ID, post_title FROM wp_posts;"`
+
+    When I run `wp search-replace foo bar --all-tables-with-prefix`
+    Then STDOUT should contain:
+      """
+      wp_posts_view
+      """
+    And STDOUT should contain:
+      """
+      skipped (view)
+      """
+
+    When I run `wp search-replace foo bar --all-tables`
+    Then STDOUT should contain:
+      """
+      wp_posts_view
+      """
+    And STDOUT should contain:
+      """
+      skipped (view)
+      """
+
+  @require-mysql
   Scenario: Run on unregistered, unprefixed tables with --all-tables flag
     Given a WP install
     And I run `wp db query "CREATE TABLE awesome_table ( id int(11) unsigned NOT NULL AUTO_INCREMENT, awesome_stuff TEXT, PRIMARY KEY (id) ) ENGINE=InnoDB DEFAULT CHARSET=latin1;"`
