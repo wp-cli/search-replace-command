@@ -192,11 +192,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--skip-columns=<columns>]
 	 * : Do not perform the replacement on specific columns. Use commas to
-	 * specify multiple columns.
+	 * specify multiple columns. Table-qualified column names ("table.column")
+	 * are supported to apply the skip to a specific table only.
 	 *
 	 * [--include-columns=<columns>]
 	 * : Perform the replacement on specific columns. Use commas to
-	 * specify multiple columns.
+	 * specify multiple columns. Table-qualified column names ("table.column")
+	 * are supported to apply the inclusion to a specific table only.
 	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) for all columns. By default, the command
@@ -530,11 +532,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 
 			foreach ( $columns as $col ) {
-				if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) ) {
+				if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) && ! in_array( $table . '.' . $col, $this->include_columns, true ) ) {
 					continue;
 				}
 
-				if ( in_array( $col, $this->skip_columns, true ) ) {
+				if ( in_array( $col, $this->skip_columns, true ) || in_array( $table . '.' . $col, $this->skip_columns, true ) ) {
 					continue;
 				}
 
@@ -633,7 +635,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$row_fields = array();
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
-				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
+				if ( $value
+					&& ! in_array( $col, $primary_keys, true )
+					&& ! in_array( $col, $this->skip_columns, true )
+					&& ! in_array( $table . '.' . $col, $this->skip_columns, true )
+					&& ( empty( $this->include_columns ) || in_array( $col, $this->include_columns, true ) || in_array( $table . '.' . $col, $this->include_columns, true ) )
+				) {
 					$new_value = $replacer->run( $value );
 					if ( $new_value !== $value ) {
 						++$col_counts[ $col ];

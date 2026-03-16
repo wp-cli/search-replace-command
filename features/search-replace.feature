@@ -41,6 +41,17 @@ Feature: Do global search/replace
       | Table    | Column       | Replacements | Type |
       | wp_posts | post_content | 0            | SQL  |
 
+    When I run `wp search-replace foo bar --skip-columns=wp_posts.guid`
+    Then STDOUT should not contain:
+      """
+      guid
+      """
+
+    When I run `wp search-replace foo bar --include-columns=wp_posts.post_content`
+    Then STDOUT should be a table containing rows:
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 0            | SQL  |
+
   @require-mysql
   Scenario: Multisite search/replace
     Given a WP multisite install
