@@ -23,6 +23,10 @@ multisite, this will just be the tables for the current site unless
 Search/replace intelligently handles PHP serialized data, and does not
 change primary key values.
 
+Tables without a primary key are skipped. To check whether a table has a
+primary key, run `wp db query 'DESCRIBE <table>'` and look for 'PRI' in
+the Key column.
+
 **OPTIONS**
 
 	[<old>]
