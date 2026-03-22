@@ -23,6 +23,10 @@ multisite, this will just be the tables for the current site unless
 Search/replace intelligently handles PHP serialized data, and does not
 change primary key values.
 
+Tables without a primary key are skipped. To check whether a table has a
+primary key, run `wp db query 'DESCRIBE <table>'` and look for 'PRI' in
+the Key column.
+
 **OPTIONS**
 
 	[<old>]
@@ -75,11 +79,13 @@ change primary key values.
 
 	[--skip-columns=<columns>]
 		Do not perform the replacement on specific columns. Use commas to
-		specify multiple columns.
+		specify multiple columns. Table-qualified column names ("table.column")
+		are supported to apply the skip to a specific table only.
 
 	[--include-columns=<columns>]
 		Perform the replacement on specific columns. Use commas to
-		specify multiple columns.
+		specify multiple columns. Table-qualified column names ("table.column")
+		are supported to apply the inclusion to a specific table only.
 
 	[--precise]
 		Force the use of PHP (instead of SQL) for all columns. By default, the command
@@ -192,6 +198,10 @@ Once you’ve done a bit of searching and discovered there isn’t an open or fi
 Want to contribute a new feature? Please first [open a new issue](https://github.com/wp-cli/search-replace-command/issues/new) to discuss whether the feature is a good fit for the project.
 
 Once you've decided to commit the time to seeing your pull request through, [please follow our guidelines for creating a pull request](https://make.wordpress.org/cli/handbook/pull-requests/) to make sure it's a pleasant experience. See "[Setting up](https://make.wordpress.org/cli/handbook/pull-requests/#setting-up)" for details specific to working on this package locally.
+
+### License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Support
 

@@ -41,6 +41,17 @@ Feature: Do global search/replace
       | Table    | Column       | Replacements | Type |
       | wp_posts | post_content | 0            | SQL  |
 
+    When I run `wp search-replace foo bar --skip-columns=wp_posts.guid`
+    Then STDOUT should not contain:
+      """
+      guid
+      """
+
+    When I run `wp search-replace foo bar --include-columns=wp_posts.post_content`
+    Then STDOUT should be a table containing rows:
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 0            | SQL  |
+
   @require-mysql
   Scenario: Multisite search/replace
     Given a WP multisite install
@@ -66,6 +77,31 @@ Feature: Do global search/replace
     Then STDOUT should contain:
       """
       wp_awesome
+      """
+
+  @require-mysql
+  Scenario: Skip views during search/replace
+    Given a WP install
+    And I run `wp db query "CREATE VIEW wp_posts_view AS SELECT ID, post_title FROM wp_posts;"`
+
+    When I run `wp search-replace foo bar --all-tables-with-prefix`
+    Then STDOUT should contain:
+      """
+      wp_posts_view
+      """
+    And STDOUT should contain:
+      """
+      skipped (view)
+      """
+
+    When I run `wp search-replace foo bar --all-tables`
+    Then STDOUT should contain:
+      """
+      wp_posts_view
+      """
+    And STDOUT should contain:
+      """
+      skipped (view)
       """
 
   @require-mysql
@@ -185,6 +221,8 @@ Feature: Do global search/replace
       1 rows affected
       """
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
+  @skip-sqlite
   Scenario: Regex search/replace
     Given a WP install
     When I run `wp search-replace '(Hello)\s(world)' '$2, $1' --regex`
@@ -237,6 +275,45 @@ Feature: Do global search/replace
     Then STDOUT should be a table containing rows:
       | key               | value                                    |
       | header_image_data | {"url":"https:\/\/example.com\/foo.jpg"} |
+
+  @require-mysql
+  Scenario: Search and replace handles JSON-encoded URLs in post content
+    Given a WP install
+
+    When I run `wp post create --post_content='{"src":"http:\/\/example.com\/wp-content\/uploads\/fonts\/test.woff2","fontWeight":"400"}' --post_status=publish --porcelain`
+    Then save STDOUT as {POST_ID}
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      http:\/\/example.com
+      """
+
+    When I run `wp search-replace 'http://example.com' 'http://newdomain.com' wp_posts --include-columns=post_content`
+    Then STDOUT should be a table containing rows:
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | SQL  |
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      http:\/\/newdomain.com
+      """
+    And STDOUT should not contain:
+      """
+      http:\/\/example.com
+      """
+
+    When I run `wp search-replace 'http://newdomain.com' 'http://example.com' wp_posts --include-columns=post_content --precise`
+    Then STDOUT should be a table containing rows:
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 1            | PHP  |
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should contain:
+      """
+      http:\/\/example.com
+      """
 
   @require-mysql
   Scenario: Search and replace with quoted strings
@@ -884,6 +961,8 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
+  @skip-sqlite
   Scenario: Logging with regex replace
     Given a WP install
 
@@ -1246,6 +1325,8 @@ Feature: Do global search/replace
       [field_count] => 2
       """
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
+  @skip-sqlite
   Scenario: Regex search/replace with `--regex-limit=1` option
     Given a WP install
     And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
@@ -1256,6 +1337,8 @@ Feature: Do global search/replace
       I have a pen, I have an orange. Pen, pine-apple, apple-pen.
       """
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
+  @skip-sqlite
   Scenario: Regex search/replace with `--regex-limit=2` option
     Given a WP install
     And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
@@ -1266,6 +1349,8 @@ Feature: Do global search/replace
       I have a pen, I have an orange. Pen, pine-orange, apple-pen.
       """
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
+  @skip-sqlite
   Scenario: Regex search/replace with incorrect or default `--regex-limit`
     Given a WP install
     When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=asdf`
@@ -1559,4 +1644,22 @@ Feature: Do global search/replace
     And STDOUT should not contain:
       """
       --old-content
+      """
+
+
+  @require-mysql
+  Scenario: Warn when updating a table fails due to a database error
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_readonly_test ( id int(11) unsigned NOT NULL AUTO_INCREMENT, data TEXT, PRIMARY KEY (id) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"`
+    And I run `wp db query "INSERT INTO wp_readonly_test (data) VALUES ('old-value');"`
+    And I run `wp db query "CREATE TRIGGER prevent_update BEFORE UPDATE ON wp_readonly_test FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Table is read-only';"`
+
+    When I try `wp search-replace old-value new-value --all-tables-with-prefix`
+    Then STDERR should contain:
+      """
+      Error updating column 'data' in table 'wp_readonly_test'
+      """
+    And STDERR should contain:
+      """
+      Table is read-only
       """

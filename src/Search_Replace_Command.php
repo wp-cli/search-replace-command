@@ -20,6 +20,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $export_handle = false;
 
 	/**
+	 * Tracks table/column combinations that have encountered update errors,
+	 * so we can avoid repeated failing updates and noisy per-row warnings.
+	 *
+	 * @var array
+	 */
+	private $update_error_columns = array();
+
+	/**
 	 * @var int
 	 */
 	private $export_insert_size;
@@ -132,6 +140,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * Search/replace intelligently handles PHP serialized data, and does not
 	 * change primary key values.
 	 *
+	 * Tables without a primary key are skipped. To check whether a table has a
+	 * primary key, run `wp db query 'DESCRIBE <table>'` and look for 'PRI' in
+	 * the Key column.
+	 *
 	 * ## OPTIONS
 	 *
 	 * [<old>]
@@ -184,11 +196,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--skip-columns=<columns>]
 	 * : Do not perform the replacement on specific columns. Use commas to
-	 * specify multiple columns.
+	 * specify multiple columns. Table-qualified column names ("table.column")
+	 * are supported to apply the skip to a specific table only.
 	 *
 	 * [--include-columns=<columns>]
 	 * : Perform the replacement on specific columns. Use commas to
-	 * specify multiple columns.
+	 * specify multiple columns. Table-qualified column names ("table.column")
+	 * are supported to apply the inclusion to a specific table only.
 	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) for all columns. By default, the command
@@ -465,12 +479,24 @@ class Search_Replace_Command extends WP_CLI_Command {
 		// Get table names based on leftover $args or supplied $assoc_args
 		$tables = Utils\wp_get_table_names( $args, $assoc_args );
 
-		foreach ( $tables as $table ) {
+		// Identify views so they can be skipped; views are dynamic and cannot be directly modified.
+		$views_args               = $assoc_args;
+		$views_args['views-only'] = true;
+		$views                    = Utils\wp_get_table_names( [], $views_args );
+		$view_set                 = array_flip( array_intersect( $views, $tables ) );
 
+		foreach ( $tables as $table ) {
 			foreach ( $this->skip_tables as $skip_table ) {
 				if ( fnmatch( $skip_table, $table ) ) {
 					continue 2;
 				}
+			}
+
+			if ( isset( $view_set[ $table ] ) ) {
+				if ( $this->report && ! $this->report_changed_only ) {
+					$report[] = array( $table, '', 'skipped (view)', '' );
+				}
+				continue;
 			}
 
 			$table_sql = self::esc_sql_ident( $table );
@@ -510,11 +536,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 
 			foreach ( $columns as $col ) {
-				if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) ) {
+				if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) && ! in_array( $table . '.' . $col, $this->include_columns, true ) ) {
 					continue;
 				}
 
-				if ( in_array( $col, $this->skip_columns, true ) ) {
+				if ( in_array( $col, $this->skip_columns, true ) || in_array( $table . '.' . $col, $this->skip_columns, true ) ) {
 					continue;
 				}
 
@@ -625,7 +651,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$row_fields = array();
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
-				if ( $value && ! in_array( $col, $primary_keys, true ) && ! in_array( $col, $this->skip_columns, true ) ) {
+				if ( $value
+					&& ! in_array( $col, $primary_keys, true )
+					&& ! in_array( $col, $this->skip_columns, true )
+					&& ! in_array( $table . '.' . $col, $this->skip_columns, true )
+					&& ( empty( $this->include_columns ) || in_array( $col, $this->include_columns, true ) || in_array( $table . '.' . $col, $this->include_columns, true ) )
+				) {
 					$new_value = $replacer->run( $value );
 					if ( $new_value !== $value ) {
 						++$col_counts[ $col ];
@@ -672,19 +703,42 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );
+		$old_json  = self::json_encode_strip_quotes( $old );
+		$new_json  = self::json_encode_strip_quotes( $new );
+		$has_json  = $old_json !== $old;
+
 		if ( $this->dry_run ) {
 			if ( $this->log_handle ) {
 				$count = $this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+				if ( $has_json ) {
+					$count += $this->log_sql_diff( $col, $primary_keys, $table, $old_json, $new_json );
+				}
+			} elseif ( $has_json ) {
+				// Single query with OR to avoid counting rows that match both forms twice.
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s OR $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%', '%' . self::esc_like( $old_json ) . '%' ) );
 			} else {
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%' ) );
 			}
 		} else {
 			if ( $this->log_handle ) {
 				$this->log_sql_diff( $col, $primary_keys, $table, $old, $new );
+				if ( $has_json ) {
+					$this->log_sql_diff( $col, $primary_keys, $table, $old_json, $new_json );
+				}
 			}
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-			$count = $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
+			if ( $has_json ) {
+				// Single nested REPLACE handles both plain and JSON-encoded forms in one pass.
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE(REPLACE($col_sql, %s, %s), %s, %s);", $old, $new, $old_json, $new_json ) );
+			} else {
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s);", $old, $new ) );
+			}
+			if ( $wpdb->last_error ) {
+				WP_CLI::warning( sprintf( "Error updating column '%s' in table '%s': %s", $col, $table, $wpdb->last_error ) );
+			}
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -706,8 +760,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$base_key_condition = '';
 		$where_key          = '';
 		if ( ! $this->regex ) {
+			$old_json           = self::json_encode_strip_quotes( $old );
 			$base_key_condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
-			$where_key          = "WHERE $base_key_condition";
+			if ( $old_json !== $old ) {
+				$base_key_condition = "( $base_key_condition OR $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old_json ) . '%' ) . ' )';
+			}
+			$where_key = "WHERE $base_key_condition";
 		}
 
 		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
@@ -769,14 +827,36 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$replacer->clear_log_data();
 				}
 
-				++$count;
-				if ( ! $this->dry_run ) {
+				// If we've already seen an update error for this table/column and are not in dry-run,
+				// skip further attempts to avoid repeated failures and noisy warnings.
+				if ( ! $this->dry_run && ! empty( $this->update_error_columns[ $table ][ $col ] ) ) {
+					continue;
+				}
+
+				if ( $this->dry_run ) {
+					// In dry-run mode, count replacements once a change has been detected.
+					++$count;
+				} else {
 					$update_where = array();
 					foreach ( (array) $keys as $k => $v ) {
 						$update_where[ $k ] = $v;
 					}
 
-					$wpdb->update( $table, [ $col => $value ], $update_where );
+					$result = $wpdb->update( $table, array( $col => $value ), $update_where );
+					if ( false === $result ) {
+						if ( empty( $this->update_error_columns[ $table ][ $col ] ) ) {
+							$this->update_error_columns[ $table ][ $col ] = true;
+							if ( $wpdb->last_error ) {
+								WP_CLI::warning( sprintf( "Error updating column '%s' in table '%s': %s", $col, $table, $wpdb->last_error ) );
+							} else {
+								WP_CLI::warning( sprintf( "Error updating column '%s' in table '%s'.", $col, $table ) );
+							}
+						}
+						continue;
+					}
+
+					// Only count successful updates.
+					++$count;
 				}
 			}
 
@@ -987,6 +1067,19 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		return $old;
+	}
+
+	/**
+	 * Returns the JSON-encoded representation of a string with the surrounding quotes stripped.
+	 * This is used to also handle values stored as raw JSON in the database (e.g. WordPress font data).
+	 * Returns the original string unchanged if JSON encoding fails (e.g. invalid UTF-8).
+	 *
+	 * @param string $str The string to encode.
+	 * @return string The JSON-encoded string without surrounding quotes, or the original string on failure.
+	 */
+	public static function json_encode_strip_quotes( $str ) {
+		$encoded = json_encode( $str ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		return false !== $encoded ? substr( $encoded, 1, -1 ) : $str;
 	}
 
 	/**
