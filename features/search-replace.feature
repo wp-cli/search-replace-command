@@ -292,7 +292,7 @@ Feature: Do global search/replace
     When I run `wp search-replace 'http://example.com' 'http://newdomain.com' wp_posts --include-columns=post_content`
     Then STDOUT should be a table containing rows:
       | Table    | Column       | Replacements | Type |
-      | wp_posts | post_content | 1            | SQL  |
+      | wp_posts | post_content | 1            | PHP  |
 
     When I run `wp post get {POST_ID} --field=post_content`
     Then STDOUT should contain:
@@ -1644,7 +1644,7 @@ Feature: Do global search/replace
     And I run `wp db query "CREATE TABLE wp_json_test ( id int(11) unsigned NOT NULL AUTO_INCREMENT, meta TEXT, PRIMARY KEY (id) ) ENGINE=InnoDB;"`
     And I run `wp db query "INSERT INTO wp_json_test (meta) VALUES ('{\"confirmations\":{\"1\":{\"url\":\"https:\\/\\/oldsite.com\\/confirmation-page\",\"type\":\"redirect\"}}}');"`
 
-    When I run `wp search-replace 'https://oldsite.com' 'https://newsite.com' wp_json_test`
+    When I run `wp search-replace 'https://oldsite.com' 'https://newsite.com' wp_json_test --all-tables-with-prefix`
     Then STDOUT should be a table containing rows:
       | Table         | Column | Replacements | Type |
       | wp_json_test  | meta   | 1            | PHP  |
@@ -1696,7 +1696,7 @@ Feature: Do global search/replace
     And I run `wp db query "CREATE TABLE wp_json_detect ( id int(11) unsigned NOT NULL AUTO_INCREMENT, data TEXT, PRIMARY KEY (id) ) ENGINE=InnoDB;"`
     And I run `wp db query "INSERT INTO wp_json_detect (data) VALUES ('{\"site_url\":\"https:\\/\\/old.example.com\\/path\"}');"`
 
-    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com' wp_json_detect`
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com' wp_json_detect --all-tables-with-prefix`
     Then STDOUT should be a table containing rows:
       | Table           | Column | Replacements | Type |
       | wp_json_detect  | data   | 1            | PHP  |
