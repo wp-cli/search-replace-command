@@ -200,7 +200,20 @@ class SearchReplacer {
 				if ( $this->logging ) {
 					$old_data = $data;
 				}
-				if ( $this->regex ) {
+
+				// Try to decode as a JSON object or array and recurse into the
+				// decoded structure. This properly handles URLs stored inside
+				// JSON-encoded columns (e.g. Gravity Forms confirmations, block
+				// editor font data), including nested JSON where slashes are
+				// double-escaped.
+				$json_decoded = json_decode( $data, true );
+				if ( null !== $json_decoded && is_array( $json_decoded ) ) {
+					$json_decoded = $this->run_recursively( $json_decoded, false, $recursion_level + 1, $visited_data );
+					$json_result  = json_encode( $json_decoded );
+					if ( false !== $json_result ) {
+						$data = $json_result;
+					}
+				} elseif ( $this->regex ) {
 					$search_regex  = $this->regex_delimiter;
 					$search_regex .= $this->from;
 					$search_regex .= $this->regex_delimiter;
