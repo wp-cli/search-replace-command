@@ -292,7 +292,7 @@ Feature: Do global search/replace
     When I run `wp search-replace 'http://example.com' 'http://newdomain.com' wp_posts --include-columns=post_content`
     Then STDOUT should be a table containing rows:
       | Table    | Column       | Replacements | Type |
-      | wp_posts | post_content | 1            | SQL  |
+      | wp_posts | post_content | 1            | PHP  |
 
     When I run `wp post get {POST_ID} --field=post_content`
     Then STDOUT should contain:
@@ -1636,4 +1636,73 @@ Feature: Do global search/replace
     And STDERR should contain:
       """
       Table is read-only
+      """
+
+  @require-mysql
+  Scenario: Search and replace handles JSON-encoded URLs in custom tables
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_json_test ( id int(11) unsigned NOT NULL AUTO_INCREMENT, meta TEXT, PRIMARY KEY (id) ) ENGINE=InnoDB;"`
+    And I run `wp db query "INSERT INTO wp_json_test (meta) VALUES ('{\"confirmations\":{\"1\":{\"url\":\"https:\\/\\/oldsite.com\\/confirmation-page\",\"type\":\"redirect\"}}}');"`
+
+    When I run `wp search-replace 'https://oldsite.com' 'https://newsite.com' wp_json_test --all-tables-with-prefix`
+    Then STDOUT should be a table containing rows:
+      | Table         | Column | Replacements | Type |
+      | wp_json_test  | meta   | 1            | PHP  |
+
+    When I run `wp db query "SELECT meta FROM wp_json_test WHERE id = 1" --skip-column-names`
+    Then STDOUT should contain:
+      """
+      https:\/\/newsite.com\/confirmation-page
+      """
+    And STDOUT should not contain:
+      """
+      https:\/\/oldsite.com
+      """
+
+  @require-mysql
+  Scenario: Search and replace handles nested JSON (JSON within serialized data)
+    Given a WP install
+    And a setup-nested-json.php file:
+      """
+      <?php
+      $data = array(
+          'config' => json_encode( array(
+              'url' => 'https://oldsite.com/page',
+              'name' => 'Test',
+          ) ),
+      );
+      update_option( 'nested_json_test', $data );
+      """
+    And I run `wp eval-file setup-nested-json.php`
+
+    When I run `wp search-replace 'https://oldsite.com' 'https://newsite.com' wp_options --include-columns=option_value`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 1            | PHP  |
+
+    When I run `wp option get nested_json_test --format=json`
+    Then STDOUT should contain:
+      """
+      newsite.com
+      """
+    And STDOUT should not contain:
+      """
+      oldsite.com
+      """
+
+  @require-mysql
+  Scenario: Search and replace detects JSON columns for PHP mode automatically
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_json_detect ( id int(11) unsigned NOT NULL AUTO_INCREMENT, data TEXT, PRIMARY KEY (id) ) ENGINE=InnoDB;"`
+    And I run `wp db query "INSERT INTO wp_json_detect (data) VALUES ('{\"site_url\":\"https:\\/\\/old.example.com\\/path\"}');"`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com' wp_json_detect --all-tables-with-prefix`
+    Then STDOUT should be a table containing rows:
+      | Table           | Column | Replacements | Type |
+      | wp_json_detect  | data   | 1            | PHP  |
+
+    When I run `wp db query "SELECT data FROM wp_json_detect WHERE id = 1" --skip-column-names`
+    Then STDOUT should contain:
+      """
+      new.example.com
       """
