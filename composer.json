@@ -50,6 +50,12 @@
     "minimum-stability": "dev",
     "prefer-stable": true,
     "scripts": {
+        "post-install-cmd": [
+            "@php patches/fix-runner-set-alias.php"
+        ],
+        "post-update-cmd": [
+            "@php patches/fix-runner-set-alias.php"
+        ],
         "behat": "run-behat-tests",
         "behat-rerun": "rerun-behat-tests",
         "lint": "run-linter-tests",

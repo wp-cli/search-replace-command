@@ -13,6 +13,9 @@
 	<!-- What to scan. -->
 	<file>.</file>
 
+	<!-- Exclude the patches directory – it contains build utilities, not plugin/theme code. -->
+	<exclude-pattern>*/patches/*</exclude-pattern>
+
 	<!-- Show progress. -->
 	<arg value="p"/>
 

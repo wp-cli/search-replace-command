@@ -1637,3 +1637,26 @@ Feature: Do global search/replace
       """
       Table is read-only
       """
+
+  @require-mysql
+  Scenario: Global runtime parameters are accepted when used alongside an alias
+    Given a WP install
+    And a wp-cli.yml file:
+      """
+      '@local':
+        url: https://example.com
+      """
+
+    When I run `wp @local --url=https://example.com search-replace foo bar`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+    And STDERR should be empty
+
+    When I run `wp @local --url=https://example.com search-replace foo bar --dry-run`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+    And STDERR should be empty
