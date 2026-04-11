@@ -51,14 +51,17 @@ $new = <<<'PHP'
 		// Global runtime parameters (url, path, user, etc.) are managed
 		// entirely through the config system.  Putting them into $assoc_args
 		// causes subcommand validation to reject them as "unknown" parameters.
-		$runtime_keys = array_keys(
-			array_filter(
-				WP_CLI::get_configurator()->get_spec(),
-				static function ( $details ) {
-					return false !== $details['runtime'];
-				}
-			)
-		);
+		static $runtime_keys = null;
+		if ( null === $runtime_keys ) {
+			$runtime_keys = array_keys(
+				array_filter(
+					WP_CLI::get_configurator()->get_spec(),
+					static function ( $details ) {
+						return false !== $details['runtime'];
+					}
+				)
+			);
+		}
 		foreach ( $alias_config as $key => $_ ) {
 			if ( in_array( $key, $runtime_keys, true ) ) {
 				continue;
@@ -74,6 +77,8 @@ PHP;
 if ( false === strpos( $contents, $old ) ) {
 	// The original code was not found – the upstream may have already fixed
 	// this or the file structure changed.  Either way, do nothing.
+	fwrite( STDERR, "Notice: patches/fix-runner-set-alias.php — could not locate the target code in {$file}. " .
+		"The patch was not applied. This is expected if the upstream fix has already been merged into wp-cli/wp-cli.\n" );
 	return;
 }
 
