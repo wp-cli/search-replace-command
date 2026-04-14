@@ -573,6 +573,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 							$serial_row = true;
 						}
 					}
+
+					// Also detect JSON objects/arrays so the PHP path can decode,
+					// recurse into, and re-encode them — handling nested escaped
+					// URLs that a simple SQL REPLACE cannot reach.
+					if ( null === $serial_row ) {
+						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+						$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[\\\\[{]' LIMIT 1" );
+					}
 				}
 
 				if ( $php_only || $this->regex || null !== $serial_row ) {
