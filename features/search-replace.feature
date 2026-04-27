@@ -1207,7 +1207,7 @@ Feature: Do global search/replace
   Scenario: The search_replace_unserialize_options hook allows overriding allowed_classes for unserialize
 
     Given a WP install
-    And I run `wp option add cereal_isation 'O:8:"stdClass":1:{s:3:"foo";s:3:"bar";}'`
+    And I run `wp option add cereal_isation 'O:8:"stdClass":1:{s:3:"foo";s:13:"cereal_marker";}'`
     And a hook.php file:
       """
       <?php
@@ -1216,7 +1216,7 @@ Feature: Do global search/replace
       } );
       """
 
-    When I try `wp search-replace bar baz`
+    When I try `wp search-replace cereal_marker cereal_replaced`
     Then STDERR should contain:
       """
       Warning: Skipping an uninitialized class "stdClass", replacements might not be complete.
@@ -1226,7 +1226,7 @@ Feature: Do global search/replace
       Success: Made 0 replacements.
       """
 
-    When I run `wp --require=hook.php search-replace bar baz`
+    When I run `wp --require=hook.php search-replace cereal_marker cereal_replaced`
     Then STDERR should be empty
     And STDOUT should contain:
       """
