@@ -68,6 +68,11 @@ class SearchReplacer {
 	private $max_recursion;
 
 	/**
+	 * @var array<string, mixed>
+	 */
+	private $unserialize_options;
+
+	/**
 	 * @param string  $from            String we're looking to replace.
 	 * @param string  $to              What we want it to be replaced with.
 	 * @param bool    $recurse_objects Should objects be recursively replaced?
@@ -94,6 +99,17 @@ class SearchReplacer {
 
 		// Get the XDebug nesting level. Will be zero (no limit) if no value is set
 		$this->max_recursion = intval( ini_get( 'xdebug.max_nesting_level' ) );
+
+		/**
+		 * Filter the options passed to unserialize() during search-replace.
+		 *
+		 * Defaults to `[ 'allowed_classes' => false ]` to prevent instantiation
+		 * of arbitrary classes as a hardening measure. Use this hook to allow
+		 * specific classes when needed.
+		 *
+		 * @param array<string, mixed> $options Options array for unserialize().
+		 */
+		$this->unserialize_options = \WP_CLI::do_hook( 'search_replace_unserialize_options', [ 'allowed_classes' => false ] );
 	}
 
 	/**
@@ -141,7 +157,7 @@ class SearchReplacer {
 				// reporting of notices and warnings as well.
 				$error_reporting = error_reporting();
 				error_reporting( $error_reporting & ~E_NOTICE & ~E_WARNING );
-				$unserialized = is_string( $data ) ? @unserialize( $data ) : false;
+				$unserialized = is_string( $data ) ? @unserialize( $data, $this->unserialize_options ) : false;
 				error_reporting( $error_reporting );
 
 			} catch ( \TypeError $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.typeerrorFound
