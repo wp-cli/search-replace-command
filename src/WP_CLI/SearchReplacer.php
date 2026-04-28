@@ -103,13 +103,14 @@ class SearchReplacer {
 		/**
 		 * Filter the options passed to unserialize() during search-replace.
 		 *
-		 * Defaults to `[ 'allowed_classes' => false ]` to prevent instantiation
-		 * of arbitrary classes as a hardening measure. Use this hook to allow
-		 * specific classes when needed.
+		 * Defaults to `[ 'allowed_classes' => [ 'stdClass' ] ]` to allow the
+		 * built-in stdClass (used extensively by WordPress, e.g. theme mods)
+		 * while blocking arbitrary user-defined class instantiation. Use this
+		 * hook to allow additional classes when needed.
 		 *
 		 * @param array<string, mixed> $options Options array for unserialize().
 		 */
-		$this->unserialize_options = \WP_CLI::do_hook( 'search_replace_unserialize_options', [ 'allowed_classes' => false ] );
+		$this->unserialize_options = \WP_CLI::do_hook( 'search_replace_unserialize_options', [ 'allowed_classes' => [ 'stdClass' ] ] );
 	}
 
 	/**
