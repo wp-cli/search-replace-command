@@ -276,6 +276,37 @@ Feature: Do global search/replace
       | header_image_data | {"url":"https:\/\/example.com\/foo.jpg"} |
 
   @require-mysql
+  Scenario: Search and replace prevents malformed URL replacements
+    Given a WP install
+
+    When I try `wp search-replace "https://example.com" "http;//newdomain.com"`
+    Then STDERR should contain:
+      """
+      Error: The replacement string contains characters that are invalid in a URL (e.g., ';').
+      """
+    And the return code should be 1
+
+    When I try `wp search-replace "https://example.com" "http://newdomain.com, /subdir"`
+    Then STDERR should contain:
+      """
+      Error: The replacement string contains characters that are invalid in a URL (e.g., ',').
+      """
+    And the return code should be 1
+
+    When I run `wp search-replace "https://example.com" "https://newdomain.com"`
+    Then STDERR should be empty
+
+    When I try `wp search-replace "example.com" "new;domain.com" --type=url`
+    Then STDERR should contain:
+      """
+      Error: The replacement string contains characters that are invalid in a URL (e.g., ';').
+      """
+    And the return code should be 1
+
+    When I run `wp search-replace "example.com" "new;domain.com"`
+    Then STDERR should be empty
+
+  @require-mysql
   Scenario: Search and replace handles JSON-encoded URLs in post content
     Given a WP install
 
