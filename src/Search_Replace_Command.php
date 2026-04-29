@@ -343,6 +343,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 			WP_CLI::error( $error_msg );
 		}
 
+		$total                 = 0;
+		$report                = array();
+		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run', false );
+		$php_only              = Utils\get_flag_value( $assoc_args, 'precise', false );
+		$this->recurse_objects = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
+		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose', false );
+		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
+		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
+
 		// Handle smart URL mode
 		$is_url_mode    = 'url' === Utils\get_flag_value( $assoc_args, 'type' );
 		$analyze_tables = Utils\get_flag_value( $assoc_args, 'analyze-tables', false );
@@ -360,15 +369,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			$this->apply_smart_url_mode( $args, $assoc_args, $analyze_tables );
 		}
-
-		$total                 = 0;
-		$report                = array();
-		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run', false );
-		$php_only              = Utils\get_flag_value( $assoc_args, 'precise', false );
-		$this->recurse_objects = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
-		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose', false );
-		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
-		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
 
 		$default_regex_delimiter = false;
 
