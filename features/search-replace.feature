@@ -279,21 +279,21 @@ Feature: Do global search/replace
   Scenario: Search and replace prevents malformed URL replacements
     Given a WP install
 
-    When I try `wp search-replace "https://example.com" "http;//newdomain.com"`
+    When I try `wp search-replace "https://example.com" "http;//newdomain.com" --type=url`
     Then STDERR should contain:
       """
       Error: The replacement string contains characters that are invalid in a URL (e.g., ';').
       """
     And the return code should be 1
 
-    When I try `wp search-replace "https://example.com" "http://newdomain.com, /subdir"`
+    When I try `wp search-replace "https://example.com" "http://newdomain.com, /subdir" --type=url`
     Then STDERR should contain:
       """
       Error: The replacement string contains characters that are invalid in a URL (e.g., ',').
       """
     And the return code should be 1
 
-    When I run `wp search-replace "https://example.com" "https://newdomain.com"`
+    When I run `wp search-replace "https://example.com" "https://newdomain.com" --type=url`
     Then STDERR should be empty
 
     When I try `wp search-replace "example.com" "new;domain.com" --type=url`
