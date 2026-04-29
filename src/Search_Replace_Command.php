@@ -230,6 +230,21 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * [--regex-limit=<regex-limit>]
 	 * : The maximum possible replacements for the regex per row (or per unserialized data bit per row). Defaults to -1 (no limit).
 	 *
+	 * [--type=<type>]
+	 * : Enable smart replacement mode for specific data types. Validates the replacement string and optimizes performance by skipping unrelated columns.
+	 * ---
+	 * options:
+	 *   - url
+	 * ---
+	 *
+	 * [--analyze-tables]
+	 * : Enable advanced table analysis mode. Analyzes MySQL column datatypes
+	 * to automatically skip non-text columns (integers, dates, enums, etc.)
+	 * and columns matching common WordPress-style naming patterns (e.g. `*_id`,
+	 * `*_count`, `*_status`, etc.) in addition to the static skip list. Useful
+	 * for plugin tables with custom schemas. Requires `--type=url` to be enabled.
+	 * Note: Adds a small overhead for table introspection.
+	 *
 	 * [--format=<format>]
 	 * : Render output in a particular format.
 	 * ---
@@ -337,6 +352,24 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
 
+		// Handle smart URL mode
+		$is_url_mode    = 'url' === Utils\get_flag_value( $assoc_args, 'type' );
+		$analyze_tables = Utils\get_flag_value( $assoc_args, 'analyze-tables', false );
+
+		if ( $analyze_tables && ! $is_url_mode ) {
+			WP_CLI::error( 'The --analyze-tables flag requires --type=url to be enabled.' );
+		}
+
+		if ( $is_url_mode ) {
+			// Issue #231: Validate replacement URL for illegal cookie path characters.
+			// We do not strictly validate the search string, as users often search for non-schemed domains (e.g. 'example.com').
+			if ( preg_match( '/[;,\s\t\r\n]/', $new, $matches ) ) {
+				WP_CLI::error( sprintf( "The replacement string contains characters that are invalid in a URL (e.g., '%s'). This can cause fatal errors in PHP 8.0+.", $matches[0] ) );
+			}
+
+			$this->apply_smart_url_mode( $args, $assoc_args, $analyze_tables );
+		}
+
 		$default_regex_delimiter = false;
 
 		if ( null !== $this->regex ) {
@@ -379,7 +412,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		$this->skip_columns    = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns', '' ) );
+		$this->skip_columns    = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns', '' ) ) );
 		$this->skip_tables     = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-tables', '' ) );
 		$this->include_columns = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'include-columns', '' ) ) );
 
@@ -1303,5 +1336,105 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		fwrite( $this->log_handle, "{$table_column_id_log}\n{$old_log}\n{$new_log}\n" );
+	}
+
+	/**
+	 * Apply smart URL mode to automatically skip non-URL columns.
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments (passed by reference).
+	 * @param bool  $analyze_tables Whether to analyze tables for additional skips.
+	 */
+	private function apply_smart_url_mode( $args, &$assoc_args, $analyze_tables ) {
+		// Get existing skip columns
+		$existing_skip_columns = Utils\get_flag_value( $assoc_args, 'skip-columns', '' );
+		$skip_columns_array    = array_filter( explode( ',', $existing_skip_columns ) );
+
+		// Start with our static non-URL columns
+		$all_skip_columns = WP_CLI\SearchReplace\Non_URL_Columns::get_core_columns();
+
+		// If analyze-tables is enabled, add datatype-based skipping
+		if ( $analyze_tables ) {
+			$tables = Utils\wp_get_table_names( $args, $assoc_args );
+
+			if ( $this->verbose && ! WP_CLI::get_config( 'quiet' ) && 'count' !== $this->format ) {
+				WP_CLI::log( 'Analyzing table structures for additional columns to skip...' );
+			}
+
+			$analyzed_columns = $this->analyze_tables_for_skip_columns( $tables );
+			$all_skip_columns = array_merge( $all_skip_columns, $analyzed_columns );
+		}
+
+		// Merge with user-provided skip columns
+		$all_skip_columns = array_unique( array_merge( $skip_columns_array, $all_skip_columns ) );
+
+		// Update the assoc_args with the merged skip columns
+		$assoc_args['skip-columns'] = implode( ',', $all_skip_columns );
+
+		// Inform the user about the optimization
+		if ( ! WP_CLI::get_config( 'quiet' ) && 'count' !== $this->format ) {
+			if ( $this->verbose ) {
+				$mode_text = $analyze_tables ? 'Smart URL mode with table analysis' : 'Smart URL mode';
+				WP_CLI::log(
+					sprintf(
+						'%s: Skipping %d columns: %s',
+						$mode_text,
+						count( $all_skip_columns ),
+						implode( ', ', array_slice( $all_skip_columns, 0, 10 ) ) . ( count( $all_skip_columns ) > 10 ? '...' : '' )
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Analyze tables to find additional columns to skip based on datatypes.
+	 *
+	 * This method examines the MySQL column definitions to identify columns
+	 * that cannot contain URLs based on their datatype (integers, dates, enums, etc.)
+	 * or naming patterns.
+	 *
+	 * @param array $tables List of table names to analyze.
+	 * @return array List of column names to skip.
+	 */
+	private function analyze_tables_for_skip_columns( $tables ) {
+		global $wpdb;
+
+		$skip_columns = array();
+
+		foreach ( $tables as $table ) {
+			// Get column information from INFORMATION_SCHEMA
+			$columns = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT COLUMN_NAME AS column_name, DATA_TYPE AS data_type, COLUMN_TYPE AS column_type
+					 FROM INFORMATION_SCHEMA.COLUMNS
+					 WHERE TABLE_SCHEMA = DATABASE()
+					 AND TABLE_NAME = %s',
+					$table
+				)
+			);
+
+			if ( empty( $columns ) ) {
+				continue; // @codeCoverageIgnore
+			}
+
+			foreach ( $columns as $col ) {
+				$column_name = $col->column_name;
+				$data_type   = $col->data_type;
+				$column_type = $col->column_type;
+
+				// Skip columns based on datatype
+				if ( WP_CLI\SearchReplace\Non_URL_Columns::is_non_text_datatype( $data_type, $column_type ) ) {
+					$skip_columns[] = $column_name;
+				}
+
+				// Skip columns based on naming patterns
+				if ( WP_CLI\SearchReplace\Non_URL_Columns::matches_non_url_pattern( $column_name ) ) {
+					$skip_columns[] = $column_name;
+				}
+			}
+		}
+
+		return array_unique( $skip_columns );
 	}
 }
