@@ -1476,7 +1476,6 @@ Feature: Do global search/replace
       Success: Made 0 replacements.
       """
 
-  @require-mysql
   Scenario: Search/replace strings starting with hyphens using --old and --new flags
     Given a WP install
     And I run `wp post create --post_title="Test Post" --post_content="This is --old-content and more text" --porcelain`
@@ -1497,6 +1496,33 @@ Feature: Do global search/replace
     And STDOUT should not contain:
       """
       --old-content
+      """
+
+  @require-mysql
+  Scenario: Progress bar shows when not in verbose mode
+    Given a WP install
+    And I run `wp post generate --count=100`
+    And I run `wp option set test_url 'Visit http://example.com for more'`
+
+    When I run `wp search-replace http://example.com http://example.org --precise`
+    Then STDERR should contain:
+      """
+      Processing
+      """
+
+  @require-mysql
+  Scenario: Progress bar does not show in verbose mode
+    Given a WP install
+    And I run `wp post generate --count=10`
+
+    When I run `wp search-replace http://example.com http://example.org --verbose`
+    Then STDOUT should contain:
+      """
+      Checking:
+      """
+    And STDERR should not contain:
+      """
+      Processing
       """
 
   @require-mysql
