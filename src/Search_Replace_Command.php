@@ -139,6 +139,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * Search/replace intelligently handles PHP serialized data, and does not
 	 * change primary key values.
+	 * In non-regex mode, it also replaces JSON-escaped versions of the search
+	 * string, such as `http:\/\/example.com` when searching for
+	 * `http://example.com`.
 	 *
 	 * Tables without a primary key are skipped. To check whether a table has a
 	 * primary key, run `wp db query 'DESCRIBE <table>'` and look for 'PRI' in
@@ -277,6 +280,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 *     # Use precise mode for complex serialized data
 	 *     $ wp search-replace 'oldurl.com' 'newurl.com' --precise
+	 *
+	 *     # Replace a URL in plain text and JSON-escaped data
+	 *     $ wp search-replace 'https://example.com' 'https://example.test'
 	 *
 	 *     # Bash script: Search/replace production to development url (multisite compatible)
 	 *     #!/bin/bash
