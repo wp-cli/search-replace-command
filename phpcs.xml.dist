@@ -12,6 +12,7 @@
 
 	<!-- What to scan. -->
 	<file>.</file>
+	<exclude-pattern>tests/FileSearchReplacerTest\.php</exclude-pattern>
 
 	<!-- Show progress. -->
 	<arg value="p"/>
@@ -60,9 +61,16 @@
 	<!-- Exclude existing classes and namespaces from the prefix rule as it would break BC to prefix them now. -->
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound">
 		<exclude-pattern>*/src/Search_Replace_Command\.php$</exclude-pattern>
+		<exclude-pattern>*/src/Search_Replace_File_Command\.php$</exclude-pattern>
 	</rule>
+
+	<!-- The test file is a direct port of the go-search-replace test suite. -->
+	<exclude-pattern>*/tests/FileSearchReplacerTest\.php$</exclude-pattern>
+
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedNamespaceFound">
 		<exclude-pattern>*/src/WP_CLI/SearchReplacer\.php$</exclude-pattern>
+		<exclude-pattern>*/src/WP_CLI/FileSearchReplacer\.php$</exclude-pattern>
+		<exclude-pattern>*/src/WP_CLI/Serialized_Replace_Result\.php$</exclude-pattern>
 	</rule>
 
 	<!-- Allow for some MySQL native non-snake-case properties.
