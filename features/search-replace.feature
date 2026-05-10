@@ -328,6 +328,77 @@ Feature: Do global search/replace
       """
       {"sr-key-new":"value"}
       """
+
+  Scenario: Search and replace nested serialized array keys with --replace-keys
+    Given a WP install
+    And a setup-nested-serialized-array-key.php file:
+      """
+      <?php
+      update_option(
+      	'replace_nested_key_option',
+      	array(
+      		'outer' => array(
+      			'sr-key-old' => 'value',
+      		),
+      	)
+      );
+      """
+    And I run `wp eval-file setup-nested-serialized-array-key.php`
+
+    When I run `wp search-replace sr-key-old sr-key-new --replace-keys --dry-run`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 1            | PHP  |
+
+    When I run `wp search-replace sr-key-old sr-key-new --replace-keys`
+    And I run `wp option get replace_nested_key_option --format=json`
+    Then STDOUT should be JSON containing:
+      """
+      {"outer":{"sr-key-new":"value"}}
+      """
+
+  Scenario: Search and replace key and value with --replace-keys
+    Given a WP install
+    And a setup-key-and-value-option.php file:
+      """
+      <?php
+      update_option( 'replace_key_and_value_option', array( 'sr-key-old' => 'sr-key-old' ) );
+      """
+    And I run `wp eval-file setup-key-and-value-option.php`
+
+    When I run `wp search-replace sr-key-old sr-key-new --replace-keys --dry-run`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 1            | PHP  |
+
+    When I run `wp search-replace sr-key-old sr-key-new --replace-keys`
+    And I run `wp option get replace_key_and_value_option --format=json`
+    Then STDOUT should be JSON containing:
+      """
+      {"sr-key-new":"sr-key-new"}
+      """
+
+  Scenario: Search and replace colliding serialized array keys with --replace-keys
+    Given a WP install
+    And a setup-colliding-keys-option.php file:
+      """
+      <?php
+      update_option(
+      	'replace_colliding_keys_option',
+      	array(
+      		'sr-key-old' => 'from-old',
+      		'sr-key-new' => 'existing',
+      	)
+      );
+      """
+    And I run `wp eval-file setup-colliding-keys-option.php`
+
+    When I run `wp search-replace sr-key-old sr-key-new --replace-keys`
+    And I run `wp option get replace_colliding_keys_option --format=json`
+    Then STDOUT should be JSON containing:
+      """
+      {"sr-key-new":"from-old"}
+      """
   @require-mysql
   Scenario: Search and replace with quoted strings
     Given a WP install
