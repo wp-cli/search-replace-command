@@ -40,6 +40,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 	/**
 	 * @var bool
 	 */
+	private $replace_keys;
+
+	/**
+	 * @var bool
+	 */
 	private $regex;
 
 	/**
@@ -214,6 +219,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Enable recursing into objects to replace strings. Defaults to true;
 	 * pass --no-recurse-objects to disable.
 	 *
+	 * [--replace-keys]
+	 * : Enable replacing string keys in serialized arrays.
+	 *
 	 * [--verbose]
 	 * : Prints rows to the console as they're updated.
 	 *
@@ -287,7 +295,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *     fi
 	 *
 	 * @param array<string> $args Positional arguments.
-	 * @param array{'old'?: string, 'new'?: string, 'dry-run'?: bool, 'network'?: bool, 'all-tables-with-prefix'?: bool, 'all-tables'?: bool, 'export'?: string, 'export_insert_size'?: string, 'skip-tables'?: string, 'skip-columns'?: string, 'include-columns'?: string, 'precise'?: bool, 'recurse-objects'?: bool, 'verbose'?: bool, 'regex'?: bool, 'regex-flags'?: string, 'regex-delimiter'?: string, 'regex-limit'?: string, 'format': string, 'report'?: bool, 'report-changed-only'?: bool, 'log'?: string, 'before_context'?: string, 'after_context'?: string} $assoc_args Associative arguments.
+	 * @param array{'old'?: string, 'new'?: string, 'dry-run'?: bool, 'network'?: bool, 'all-tables-with-prefix'?: bool, 'all-tables'?: bool, 'export'?: string, 'export_insert_size'?: string, 'skip-tables'?: string, 'skip-columns'?: string, 'include-columns'?: string, 'precise'?: bool, 'recurse-objects'?: bool, 'replace-keys'?: bool, 'verbose'?: bool, 'regex'?: bool, 'regex-flags'?: string, 'regex-delimiter'?: string, 'regex-limit'?: string, 'format': string, 'report'?: bool, 'report-changed-only'?: bool, 'log'?: string, 'before_context'?: string, 'after_context'?: string} $assoc_args Associative arguments.
 	 */
 	public function __invoke( $args, $assoc_args ) {
 		global $wpdb;
@@ -333,6 +341,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->dry_run         = Utils\get_flag_value( $assoc_args, 'dry-run', false );
 		$php_only              = Utils\get_flag_value( $assoc_args, 'precise', false );
 		$this->recurse_objects = Utils\get_flag_value( $assoc_args, 'recurse-objects', true );
+		$this->replace_keys    = Utils\get_flag_value( $assoc_args, 'replace-keys', false );
 		$this->verbose         = Utils\get_flag_value( $assoc_args, 'verbose', false );
 		$this->format          = Utils\get_flag_value( $assoc_args, 'format' );
 		$this->regex           = Utils\get_flag_value( $assoc_args, 'regex', false );
@@ -638,7 +647,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			'chunk_size' => $chunk_size,
 		);
 
-		$replacer   = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
+		$replacer   = new SearchReplacer( $old, $new, $this->recurse_objects, $this->replace_keys, $this->regex, $this->regex_flags, $this->regex_delimiter, false, $this->regex_limit );
 		$col_counts = array_fill_keys( $all_columns, 0 );
 		if ( $this->verbose && 'table' === $this->format ) {
 			$this->start_time = microtime( true );
@@ -743,7 +752,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		global $wpdb;
 
 		$count    = 0;
-		$replacer = new SearchReplacer( $old, $new, $this->recurse_objects, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
+		$replacer = new SearchReplacer( $old, $new, $this->recurse_objects, $this->replace_keys, $this->regex, $this->regex_flags, $this->regex_delimiter, null !== $this->log_handle, $this->regex_limit );
 
 		$table_sql = self::esc_sql_ident( $table );
 		$col_sql   = self::esc_sql_ident( $col );

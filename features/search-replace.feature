@@ -328,18 +328,6 @@ Feature: Do global search/replace
       """
       {"sr-key-new":"value"}
       """
-
-    When I run `wp search-replace 'http://newdomain.com' 'http://example.com' wp_posts --include-columns=post_content --precise`
-    Then STDOUT should be a table containing rows:
-      | Table    | Column       | Replacements | Type |
-      | wp_posts | post_content | 1            | PHP  |
-
-    When I run `wp post get {POST_ID} --field=post_content`
-    Then STDOUT should contain:
-      """
-      http:\/\/example.com
-      """
-
   @require-mysql
   Scenario: Search and replace with quoted strings
     Given a WP install

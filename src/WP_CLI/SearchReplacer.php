@@ -35,6 +35,11 @@ class SearchReplacer {
 	/**
 	 * @var bool
 	 */
+	private $replace_keys;
+
+	/**
+	 * @var bool
+	 */
 	private $regex;
 
 	/**
@@ -71,16 +76,18 @@ class SearchReplacer {
 	 * @param string  $from            String we're looking to replace.
 	 * @param string  $to              What we want it to be replaced with.
 	 * @param bool    $recurse_objects Should objects be recursively replaced?
+	 * @param bool    $replace_keys    Should array keys be replaced?
 	 * @param bool    $regex           Whether `$from` is a regular expression.
 	 * @param string  $regex_flags     Flags for regular expression.
 	 * @param string  $regex_delimiter Delimiter for regular expression.
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
 	 */
-	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
+	public function __construct( $from, $to, $recurse_objects = false, $replace_keys = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
 		$this->from            = $from;
 		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
+		$this->replace_keys    = $replace_keys;
 		$this->regex           = $regex;
 		$this->regex_flags     = $regex_flags;
 		$this->regex_delimiter = $regex_delimiter;
@@ -165,7 +172,17 @@ class SearchReplacer {
 			} elseif ( is_array( $data ) ) {
 				$keys = array_keys( $data );
 				foreach ( $keys as $key ) {
-					$data[ $key ] = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
+					$value = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
+					if ( $this->replace_keys && is_string( $key ) ) {
+						$replaced_key = $this->run_recursively( $key, false, $recursion_level + 1, $visited_data );
+						if ( $replaced_key !== $key ) {
+							unset( $data[ $key ] );
+							$data[ $replaced_key ] = $value;
+							continue;
+						}
+					}
+
+					$data[ $key ] = $value;
 				}
 			} elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
 				if ( $data instanceof \__PHP_Incomplete_Class ) {
