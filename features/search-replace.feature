@@ -303,6 +303,32 @@ Feature: Do global search/replace
       http:\/\/example.com
       """
 
+  Scenario: Search and replace serialized array keys with --replace-keys
+    Given a WP install
+    And a setup-serialized-array-key.php file:
+      """
+      <?php
+      update_option( 'replace_key_option', array( 'sr-key-old' => 'value' ) );
+      """
+    And I run `wp eval-file setup-serialized-array-key.php`
+
+    When I run `wp search-replace sr-key-old sr-key-new --dry-run`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 0            | PHP  |
+
+    When I run `wp search-replace sr-key-old sr-key-new --replace-keys --dry-run`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 1            | PHP  |
+
+    When I run `wp search-replace sr-key-old sr-key-new --replace-keys`
+    And I run `wp option get replace_key_option --format=json`
+    Then STDOUT should be JSON containing:
+      """
+      {"sr-key-new":"value"}
+      """
+
     When I run `wp search-replace 'http://newdomain.com' 'http://example.com' wp_posts --include-columns=post_content --precise`
     Then STDOUT should be a table containing rows:
       | Table    | Column       | Replacements | Type |
