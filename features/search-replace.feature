@@ -1203,8 +1203,42 @@ Feature: Do global search/replace
       a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
 
-  @require-mysql @less-than-php-8.0
-  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP < 8.0)
+  @require-mysql
+  Scenario: The search_replace_unserialize_options hook allows overriding allowed_classes for unserialize
+
+    Given a WP install
+    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:7:\"MyClass\":1:{s:3:\"foo\";s:13:\"cereal_marker\";}')"`
+    And a hook.php file:
+      """
+      <?php
+      class MyClass {
+        public $foo = '';
+      }
+      WP_CLI::add_hook( 'search_replace_unserialize_options', function() {
+        return [ 'allowed_classes' => [ 'stdClass', 'MyClass' ] ];
+      } );
+      """
+
+    When I try `wp search-replace cereal_marker cereal_replaced`
+    Then STDERR should contain:
+      """
+      Warning: Skipping an uninitialized class "MyClass", replacements might not be complete.
+      """
+    And STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+
+    When I run `wp --require=hook.php search-replace cereal_marker cereal_replaced`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+
+  @require-mysql
+  Scenario: Warn and ignore type-hinted objects that have some error in deserialization
+
     Given a WP install
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
@@ -1212,118 +1246,11 @@ Feature: Do global search/replace
     When I try `wp search-replace mysqli_result stdClass`
     Then STDERR should contain:
       """
-      Warning: WP_CLI\SearchReplacer::run_recursively(): Couldn't fetch mysqli_result
+      Warning: Skipping an uninitialized class "mysqli_result", replacements might not be complete.
       """
     And STDOUT should contain:
       """
       Success: Made 1 replacement.
-      """
-
-    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'" --skip-column-names`
-    Then STDOUT should contain:
-      """
-      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
-      """
-    And save STDOUT as {SERIALIZED_RESULT}
-    And a test_php.php file:
-      """
-      <?php print_r(unserialize('{SERIALIZED_RESULT}'));
-      """
-
-    When I try `wp eval-file test_php.php`
-    Then STDOUT should contain:
-      """
-      stdClass Object
-      """
-    And STDOUT should contain:
-      """
-      [current_field] => 1
-      """
-    And STDOUT should contain:
-      """
-      [field_count] => 2
-      """
-
-  @require-mysql @require-php-8.0 @less-than-php-8.1
-  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP 8.0)
-    Given a WP install
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
-
-    When I try `wp search-replace mysqli_result stdClass`
-    Then STDERR should contain:
-      """
-      Warning: Skipping an inconvertible serialized object of type "mysqli_result", replacements might not be complete. Reason: mysqli_result object is already closed.
-      """
-    And STDOUT should contain:
-      """
-      Success: Made 1 replacement.
-      """
-
-    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'" --skip-column-names`
-    Then STDOUT should contain:
-      """
-      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
-      """
-    And save STDOUT as {SERIALIZED_RESULT}
-    And a test_php.php file:
-      """
-      <?php print_r(unserialize('{SERIALIZED_RESULT}'));
-      """
-
-    When I try `wp eval-file test_php.php`
-    Then STDOUT should contain:
-      """
-      stdClass Object
-      """
-    And STDOUT should contain:
-      """
-      [current_field] => 1
-      """
-    And STDOUT should contain:
-      """
-      [field_count] => 2
-      """
-
-  @require-mysql @require-php-8.1
-  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP 8.1+)
-    Given a WP install
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
-
-    When I try `wp search-replace mysqli_result stdClass`
-    Then STDERR should contain:
-      """
-      Warning: Skipping an inconvertible serialized object: "O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}", replacements might not be complete. Reason: Cannot assign null to property mysqli_result::$current_field of type int.
-      """
-    And STDOUT should contain:
-      """
-      Success: Made 1 replacement.
-      """
-
-    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'" --skip-column-names`
-    Then STDOUT should contain:
-      """
-      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
-      """
-    And save STDOUT as {SERIALIZED_RESULT}
-    And a test_php.php file:
-      """
-      <?php print_r(unserialize('{SERIALIZED_RESULT}'));
-      """
-
-    When I try `wp eval-file test_php.php`
-    Then STDOUT should contain:
-      """
-      stdClass Object
-      """
-    And STDOUT should contain:
-      """
-      [current_field] => 1
-      """
-    And STDOUT should contain:
-      """
-      [field_count] => 2
       """
 
   # See https://github.com/wp-cli/search-replace-command/issues/190
