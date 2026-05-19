@@ -616,7 +616,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			if ( ! empty( $assoc_args['export'] ) ) {
 				$success_message = 1 === $total ? "Made 1 replacement and exported to {$assoc_args['export']}." : "Made {$total} replacements and exported to {$assoc_args['export']}.";
 			} else {
-				if ( $total && 'Default' !== Utils\wp_get_cache_type() && function_exists( 'wp_cache_flush' ) ) {
+				if ( $total && 'Default' !== Utils\wp_get_cache_type() ) {
 					wp_cache_flush();
 				}
 
