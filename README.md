@@ -3,7 +3,7 @@ wp-cli/search-replace-command
 
 Searches/replaces strings in the database.
 
-[![Testing](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml/badge.svg)](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml)
+[![Testing](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml/badge.svg)](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml) [![Code Coverage](https://codecov.io/gh/wp-cli/search-replace-command/branch/main/graph/badge.svg)](https://codecov.io/gh/wp-cli/search-replace-command/tree/main)
 
 Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contributing) | [Support](#support)
 

@@ -480,10 +480,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$tables = Utils\wp_get_table_names( $args, $assoc_args );
 
 		// Identify views so they can be skipped; views are dynamic and cannot be directly modified.
-		$views_args               = $assoc_args;
-		$views_args['views-only'] = true;
-		$views                    = Utils\wp_get_table_names( [], $views_args );
-		$view_set                 = array_flip( array_intersect( $views, $tables ) );
+		// The SQLite integration drop-in does not support SHOW FULL TABLES and WordPress
+		// on SQLite does not use views, so skip the views query entirely.
+		if ( 'sqlite' === Utils\get_db_type() ) {
+			$view_set = array();
+		} else {
+			$views_args               = $assoc_args;
+			$views_args['views-only'] = true;
+			$views                    = Utils\wp_get_table_names( [], $views_args );
+			$view_set                 = array_flip( array_intersect( $views, $tables ) );
+		}
 
 		foreach ( $tables as $table ) {
 			foreach ( $this->skip_tables as $skip_table ) {
@@ -555,12 +561,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 					$col_sql          = self::esc_sql_ident( $col );
 					$wpdb->last_error = '';
 
-					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-					$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
-
-					// When the regex triggers an error, we should fall back to PHP
-					if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
+					if ( 'sqlite' === Utils\get_db_type() ) {
+						// SQLite does not support REGEXP by default, fall back to PHP processing.
 						$serial_row = true;
+					} else {
+						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+						$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' LIMIT 1" );
+
+						// When the regex triggers an error, we should fall back to PHP
+						if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
+							$serial_row = true;
+						}
 					}
 				}
 

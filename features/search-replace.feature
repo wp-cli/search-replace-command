@@ -222,7 +222,6 @@ Feature: Do global search/replace
       """
 
   # See https://github.com/wp-cli/search-replace-command/issues/190
-  @skip-sqlite
   Scenario: Regex search/replace
     Given a WP install
     When I run `wp search-replace '(Hello)\s(world)' '$2, $1' --regex`
@@ -962,6 +961,8 @@ Feature: Do global search/replace
     And STDERR should be empty
 
   # See https://github.com/wp-cli/search-replace-command/issues/190
+  # SQLite: regex backreference replacement produces different results due to
+  # LIKE case-sensitivity differences. Requires further investigation.
   @skip-sqlite
   Scenario: Logging with regex replace
     Given a WP install
@@ -1326,7 +1327,6 @@ Feature: Do global search/replace
       """
 
   # See https://github.com/wp-cli/search-replace-command/issues/190
-  @skip-sqlite
   Scenario: Regex search/replace with `--regex-limit=1` option
     Given a WP install
     And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
@@ -1338,7 +1338,6 @@ Feature: Do global search/replace
       """
 
   # See https://github.com/wp-cli/search-replace-command/issues/190
-  @skip-sqlite
   Scenario: Regex search/replace with `--regex-limit=2` option
     Given a WP install
     And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
@@ -1350,7 +1349,6 @@ Feature: Do global search/replace
       """
 
   # See https://github.com/wp-cli/search-replace-command/issues/190
-  @skip-sqlite
   Scenario: Regex search/replace with incorrect or default `--regex-limit`
     Given a WP install
     When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=asdf`
