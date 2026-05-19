@@ -162,7 +162,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--new=<value>]
 	 * : An alternative way to specify the replacement string. Use this when the
-	 * replacement string starts with '--' (e.g., --new='--other-text').
+	 * replacement string starts with '--' (e.g., --new='--other-text') or is
+	 * empty.
 	 *
 	 * [--dry-run]
 	 * : Run the entire search/replace operation and show report, but don't save
@@ -274,6 +275,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 *     # Search/replace string containing hyphens
 	 *     $ wp search-replace --old='--old-string' --new='new-string'
+	 *
+	 *     # Remove a string by replacing it with an empty value
+	 *     $ wp search-replace --old='remove-me' --new=''
 	 *
 	 *     # Use precise mode for complex serialized data
 	 *     $ wp search-replace 'oldurl.com' 'newurl.com' --precise
