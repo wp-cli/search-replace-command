@@ -195,9 +195,10 @@ class SearchReplacer {
 					);
 				} else {
 					try {
+						$is_array_access = $data instanceof \ArrayAccess;
 						foreach ( $data as $key => $value ) {
 							$value = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
-							if ( $data instanceof \ArrayAccess ) {
+							if ( $is_array_access ) {
 								$data[ $key ] = $value;
 							} else {
 								$data->$key = $value;
