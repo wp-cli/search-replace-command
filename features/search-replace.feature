@@ -1203,6 +1203,38 @@ Feature: Do global search/replace
       a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
 
+  Scenario: Search-replace updates iterable dictionary objects without dynamic property deprecations
+
+    Given a WP install
+    And a search-replace-case-insensitive-dictionary.php file:
+      """
+      <?php
+      WP_CLI::add_hook( 'search_replace_unserialize_options', function() {
+        return [ 'allowed_classes' => [ 'stdClass', 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ];
+      } );
+      $replacer = new \WP_CLI\SearchReplacer( 'old.example.com', 'new.example.com', true );
+      echo $replacer->run(
+        serialize(
+          new \WpOrg\Requests\Utility\CaseInsensitiveDictionary(
+            [
+              'date' => 'https://old.example.com/feed',
+            ]
+          )
+        )
+      );
+      """
+
+    When I run `wp eval-file search-replace-case-insensitive-dictionary.php`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      https://new.example.com/feed
+      """
+    And STDOUT should not contain:
+      """
+      https://old.example.com/feed
+      """
+
   @require-mysql
   Scenario: The search_replace_unserialize_options hook allows overriding allowed_classes for unserialize
 

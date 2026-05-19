@@ -196,7 +196,12 @@ class SearchReplacer {
 				} else {
 					try {
 						foreach ( $data as $key => $value ) {
-							$data->$key = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+							$value = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+							if ( $data instanceof \ArrayAccess ) {
+								$data[ $key ] = $value;
+							} else {
+								$data->$key = $value;
+							}
 						}
 					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
 						// This error is thrown when the object that was unserialized cannot be iterated upon.
