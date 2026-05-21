@@ -1203,6 +1203,8 @@ Feature: Do global search/replace
       a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
 
+  # `CaseInsensitiveDictionary` is from Requests 2.0, which was added in 6.2.
+  @require-wp-6.2
   Scenario: Search-replace updates iterable dictionary objects without dynamic property deprecations
 
     Given a WP install
