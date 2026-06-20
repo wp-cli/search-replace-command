@@ -509,7 +509,7 @@ Feature: Do global search/replace
       """
     And STDERR should contain:
       """
-      at offset 11
+      unmatched closing parenthesis at offset 1
       """
     And the return code should be 1
 
@@ -524,7 +524,7 @@ Feature: Do global search/replace
       """
     And STDERR should contain:
       """
-      at offset 11
+      unmatched closing parenthesis at offset 1
       """
     And the return code should be 1
 
@@ -539,7 +539,7 @@ Feature: Do global search/replace
       """
     And STDERR should contain:
       """
-      at offset 11
+      unmatched closing parenthesis at offset 1
       """
     And the return code should be 1
 
@@ -554,7 +554,7 @@ Feature: Do global search/replace
       """
     And STDERR should contain:
       """
-      at offset 11
+      unmatched closing parenthesis at offset 1
       """
     And the return code should be 1
 
