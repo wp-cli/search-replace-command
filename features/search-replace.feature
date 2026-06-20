@@ -507,10 +507,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-flags=u`
@@ -522,10 +519,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/`
@@ -537,10 +531,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/ --regex-flags=u`
@@ -552,10 +543,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
   @require-mysql
