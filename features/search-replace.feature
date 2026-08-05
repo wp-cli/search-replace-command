@@ -256,9 +256,10 @@ Feature: Do global search/replace
     And I run `wp eval-file setup-theme-mod.php`
 
     When I run `wp theme mod get header_image_data`
-    Then STDOUT should be a table containing rows:
-      | key               | value                                              |
-      | header_image_data | {"url":"https:\/\/subdomain.example.com\/foo.jpg"} |
+    Then STDOUT should contain:
+      """
+        url	https://subdomain.example.com/foo.jpg
+      """
 
     When I run `wp search-replace subdomain.example.com example.com --no-recurse-objects`
     Then STDOUT should be a table containing rows:
@@ -271,9 +272,10 @@ Feature: Do global search/replace
       | wp_options | option_value | 1            | PHP  |
 
     When I run `wp theme mod get header_image_data`
-    Then STDOUT should be a table containing rows:
-      | key               | value                                    |
-      | header_image_data | {"url":"https:\/\/example.com\/foo.jpg"} |
+    Then STDOUT should contain:
+      """
+        url	https://example.com/foo.jpg
+      """
 
   @require-mysql
   Scenario: Search and replace handles JSON-encoded URLs in post content
