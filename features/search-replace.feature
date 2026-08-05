@@ -258,7 +258,7 @@ Feature: Do global search/replace
     When I run `wp theme mod get header_image_data`
     Then STDOUT should contain:
       """
-        url	https://subdomain.example.com/foo.jpg
+      https://subdomain.example.com/foo.jpg
       """
 
     When I run `wp search-replace subdomain.example.com example.com --no-recurse-objects`
