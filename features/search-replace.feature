@@ -1201,18 +1201,21 @@ Feature: Do global search/replace
     And a search-replace-case-insensitive-dictionary.php file:
       """
       <?php
-      WP_CLI::add_hook( 'search_replace_unserialize_options', function() {
-        return [ 'allowed_classes' => [ 'stdClass', 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ];
-      } );
+      WP_CLI::add_hook(
+          'search_replace_unserialize_options',
+          function () {
+              return [ 'allowed_classes' => [ 'stdClass', 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ];
+          }
+      );
       $replacer = new \WP_CLI\SearchReplacer( 'old.example.com', 'new.example.com', true );
       echo $replacer->run(
-        serialize(
-          new \WpOrg\Requests\Utility\CaseInsensitiveDictionary(
-            [
-              'date' => 'https://old.example.com/feed',
-            ]
+          serialize(
+              new \WpOrg\Requests\Utility\CaseInsensitiveDictionary(
+                  [
+                      'date' => 'https://old.example.com/feed',
+                  ]
+              )
           )
-        )
       );
       """
 
@@ -1236,11 +1239,14 @@ Feature: Do global search/replace
       """
       <?php
       class MyClass {
-        public $foo = '';
+          public $foo = '';
       }
-      WP_CLI::add_hook( 'search_replace_unserialize_options', function() {
-        return [ 'allowed_classes' => [ 'stdClass', 'MyClass' ] ];
-      } );
+      WP_CLI::add_hook(
+          'search_replace_unserialize_options',
+          function () {
+              return [ 'allowed_classes' => [ 'stdClass', 'MyClass' ] ];
+          }
+      );
       """
 
     When I try `wp search-replace cereal_marker cereal_replaced`
