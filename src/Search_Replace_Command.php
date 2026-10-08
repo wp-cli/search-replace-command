@@ -545,14 +545,23 @@ class Search_Replace_Command extends WP_CLI_Command {
 				continue;
 			}
 
-			foreach ( $columns as $col ) {
-				if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) && ! in_array( $table . '.' . $col, $this->include_columns, true ) ) {
-					continue;
-				}
+			$columns = array_values(
+				array_filter(
+					$columns,
+					function ( $col ) use ( $table ) {
+						return $this->is_column_searched( $table, $col );
+					}
+				)
+			);
 
-				if ( in_array( $col, $this->skip_columns, true ) || in_array( $table . '.' . $col, $this->skip_columns, true ) ) {
-					continue;
-				}
+			// Gather what the per-column handling needs for all columns in a single table scan,
+			// instead of scanning the table several times for every column.
+			$column_stats = null;
+			if ( ! $this->regex && ! $this->verbose && 'sqlite' !== Utils\get_db_type() ) {
+				$column_stats = self::get_column_stats( $table, $columns, $old );
+			}
+
+			foreach ( $columns as $col ) {
 
 				if ( $this->verbose && 'count' !== $this->format ) {
 					$this->start_time = microtime( true );
@@ -560,8 +569,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 
 				$serial_row = false;
+				$stats      = null !== $column_stats && isset( $column_stats[ $col ] ) ? $column_stats[ $col ] : null;
 
-				if ( ! $php_only && ! $this->regex ) {
+				if ( null !== $stats ) {
+					if ( ! $php_only && ! $this->regex && $stats['serialized'] ) {
+						$serial_row = true;
+					} elseif ( ! $php_only && ! $this->regex ) {
+						$serial_row = null;
+					}
+				} elseif ( ! $php_only && ! $this->regex ) {
 					$col_sql          = self::esc_sql_ident( $col );
 					$wpdb->last_error = '';
 
@@ -580,11 +596,17 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 
 				if ( $php_only || $this->regex || null !== $serial_row ) {
-					$type  = 'PHP';
-					$count = $this->php_handle_col( $col, $primary_keys, $table, $old, $new );
+					$type = 'PHP';
+					// Nothing to replace in a column without matches.
+					$count = null !== $stats && 0 === $stats['matches'] ? 0 : $this->php_handle_col( $col, $primary_keys, $table, $old, $new );
 				} else {
-					$type  = 'SQL';
-					$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new );
+					$type = 'SQL';
+					if ( null !== $stats && ( 0 === $stats['matches'] || ( $this->dry_run && ! $this->log_handle ) ) ) {
+						// The dry run count is the number of matching rows, which is already known.
+						$count = $stats['matches'];
+					} else {
+						$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new );
+					}
 				}
 
 				if ( $this->report && ( $count || ! $this->report_changed_only ) ) {
@@ -984,6 +1006,78 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 		$wpdb->suppress_errors( $suppress_errors );
 		return array( $primary_keys, $text_columns, $all_columns );
+	}
+
+	/**
+	 * Whether a column is searched, given the --include-columns and --skip-columns options.
+	 *
+	 * @param string $table Table name.
+	 * @param string $col   Column name.
+	 * @return bool
+	 */
+	private function is_column_searched( $table, $col ) {
+		if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) && ! in_array( $table . '.' . $col, $this->include_columns, true ) ) {
+			return false;
+		}
+
+		return ! in_array( $col, $this->skip_columns, true ) && ! in_array( $table . '.' . $col, $this->skip_columns, true );
+	}
+
+	/**
+	 * Count the rows matching the search string and detect serialized data, for all given columns at once.
+	 *
+	 * The cost of these checks is dominated by reading the table, so doing them in one
+	 * query rather than one or two queries per column makes large tables much faster.
+	 *
+	 * @param string   $table   Table name.
+	 * @param string[] $columns Column names.
+	 * @param string   $old     Search string.
+	 * @return array<string, array{matches: int, serialized: bool}>|null Stats per column, or null if they could not be determined.
+	 */
+	private static function get_column_stats( $table, $columns, $old ) {
+		global $wpdb;
+
+		if ( empty( $columns ) ) {
+			return array();
+		}
+
+		$old_json = self::json_encode_strip_quotes( $old );
+		$selects  = array();
+		foreach ( $columns as $col ) {
+			$col_sql = self::esc_sql_ident( $col );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+			$match = $wpdb->prepare( "$col_sql LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' );
+			if ( $old_json !== $old ) {
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+				$match = "( $match OR " . $wpdb->prepare( "$col_sql LIKE BINARY %s", '%' . self::esc_like( $old_json ) . '%' ) . ' )';
+			}
+			$selects[] = "SUM( $match )";
+			$selects[] = "MAX( $col_sql REGEXP '^[aiO]:[1-9]' )";
+		}
+
+		$table_sql        = self::esc_sql_ident( $table );
+		$wpdb->last_error = '';
+		$suppress_errors  = $wpdb->suppress_errors();
+		$sql              = 'SELECT ' . implode( ', ', $selects ) . " FROM $table_sql";
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- identifiers escaped through self::esc_sql_ident, values prepared above
+		$row = $wpdb->get_row( $sql, ARRAY_N );
+		$wpdb->suppress_errors( $suppress_errors );
+
+		if ( $wpdb->last_error || ! is_array( $row ) ) {
+			// E.g. the regex fails for some column; fall back to checking the columns one by one.
+			$wpdb->last_error = '';
+			return null;
+		}
+
+		$stats = array();
+		foreach ( $columns as $i => $col ) {
+			$stats[ $col ] = array(
+				'matches'    => (int) $row[ 2 * $i ],
+				'serialized' => (bool) $row[ 2 * $i + 1 ],
+			);
+		}
+
+		return $stats;
 	}
 
 	private static function is_text_col( $type ) {
