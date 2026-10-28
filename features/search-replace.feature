@@ -1714,3 +1714,112 @@ Feature: Do global search/replace
       """
       old.example.com
       """
+
+  @require-mysql
+  Scenario: Refuse to rename colliding array keys with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-collision.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_collision_test', array( 'https://old.example.com/key' => 'v1', 'https://new.example.com/key' => 'v2' ), false );
+      """
+    And a check-recurse-keys-collision.php file:
+      """
+      <?php
+      $value = get_option( 'recurse_keys_collision_test' );
+      echo json_encode( $value, JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys-collision.php`
+
+    When I try `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then the return code should be 0
+    And STDOUT should contain:
+      """
+      Success:
+      """
+    And STDERR should contain:
+      """
+      two keys would map onto the same key
+      """
+
+    When I run `wp eval-file check-recurse-keys-collision.php`
+    Then STDOUT should contain:
+      """
+      "https://old.example.com/key":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "https://new.example.com/key":"v2"
+      """
+
+  @require-mysql
+  Scenario: Refuse to rename colliding object property names with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-object-collision.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_object_collision_test', (object) array( 'https://old.example.com/prop' => 'v1', 'https://new.example.com/prop' => 'v2' ), false );
+      """
+    And a check-recurse-keys-object-collision.php file:
+      """
+      <?php
+      $value = get_option( 'recurse_keys_object_collision_test' );
+      echo json_encode( $value, JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys-object-collision.php`
+
+    When I try `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then the return code should be 0
+    And STDOUT should contain:
+      """
+      Success:
+      """
+    And STDERR should contain:
+      """
+      two property names would map onto the same name
+      """
+
+    When I run `wp eval-file check-recurse-keys-object-collision.php`
+    Then STDOUT should contain:
+      """
+      "https://old.example.com/prop":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "https://new.example.com/prop":"v2"
+      """
+
+  @require-mysql
+  Scenario: Preserve shared references when renaming keys with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-refs.php file:
+      """
+      <?php
+      $shared = 'https://old.example.com/shared';
+      update_option( 'recurse_keys_ref_test', array( 'https://old.example.com/a' => &$shared, 'b' => &$shared ), false );
+      """
+    And a check-recurse-keys-refs.php file:
+      """
+      <?php
+      $raw = $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_ref_test'" );
+      $value = get_option( 'recurse_keys_ref_test' );
+      echo json_encode( $value, JSON_UNESCAPED_SLASHES ), "\n";
+      echo false !== strpos( $raw, 'R:2;' ) ? 'HASREF' : 'NOREF';
+      """
+    And I run `wp eval-file setup-recurse-keys-refs.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-refs.php`
+    Then STDOUT should contain:
+      """
+      "https://new.example.com/a":"https://new.example.com/shared"
+      """
+    And STDOUT should contain:
+      """
+      HASREF
+      """
