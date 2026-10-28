@@ -1592,3 +1592,125 @@ Feature: Do global search/replace
       """
       Table is read-only
       """
+
+  @require-mysql
+  Scenario: Serialized array keys are left alone by default
+    Given a WP install
+    And a setup-recurse-keys.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_test', array( 'https://old.example.com/key' => 'https://old.example.com/value', 'nested' => array( 'https://old.example.com/inner' => 'plain' ) ) );
+      """
+    And a check-recurse-keys.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_test' ), JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com'`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys.php`
+    Then STDOUT should contain:
+      """
+      https://old.example.com/key
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/value
+      """
+    And STDOUT should not contain:
+      """
+      https://new.example.com/key
+      """
+
+  @require-mysql
+  Scenario: Search/replace serialized array keys with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_test', array( 'https://old.example.com/key' => 'https://old.example.com/value', 'nested' => array( 'https://old.example.com/inner' => 'plain' ) ) );
+      """
+    And a check-recurse-keys.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_test' ), JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys.php`
+    Then STDOUT should contain:
+      """
+      https://new.example.com/key
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/value
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/inner
+      """
+    And STDOUT should not contain:
+      """
+      old.example.com
+      """
+
+  @require-mysql
+  Scenario: Search/replace object property names with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-object.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_object_test', (object) array( 'https://old.example.com/prop' => 'https://old.example.com/value' ) );
+      """
+    And a check-recurse-keys-object.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_object_test' ), JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys-object.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com'`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-object.php`
+    Then STDOUT should contain:
+      """
+      https://old.example.com/prop
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/value
+      """
+
+    When I run `wp eval-file setup-recurse-keys-object.php`
+    And I run `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-object.php`
+    Then STDOUT should contain:
+      """
+      https://new.example.com/prop
+      """
+    And STDOUT should not contain:
+      """
+      old.example.com
+      """

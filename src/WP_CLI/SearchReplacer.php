@@ -35,6 +35,11 @@ class SearchReplacer {
 	/**
 	 * @var bool
 	 */
+	private $recurse_keys;
+
+	/**
+	 * @var bool
+	 */
 	private $regex;
 
 	/**
@@ -81,11 +86,13 @@ class SearchReplacer {
 	 * @param string  $regex_delimiter Delimiter for regular expression.
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
+	 * @param bool    $recurse_keys    Should array keys and object property names be recursively replaced?
 	 */
-	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
+	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1, $recurse_keys = false ) {
 		$this->from            = $from;
 		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
+		$this->recurse_keys    = $recurse_keys;
 		$this->regex           = $regex;
 		$this->regex_flags     = $regex_flags;
 		$this->regex_delimiter = $regex_delimiter;
@@ -180,10 +187,17 @@ class SearchReplacer {
 			if ( false !== $unserialized ) {
 				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1 );
 			} elseif ( is_array( $data ) ) {
-				$keys = array_keys( $data );
+				$keys     = array_keys( $data );
+				$replaced = array();
 				foreach ( $keys as $key ) {
-					$data[ $key ] = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
+					$value   = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
+					$new_key = $key;
+					if ( $this->recurse_keys && is_string( $key ) ) {
+						$new_key = $this->replace_string( $key );
+					}
+					$replaced[ $new_key ] = $value;
 				}
+				$data = $replaced;
 			} elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
 				if ( $data instanceof \__PHP_Incomplete_Class ) {
 					$array = new ArrayObject( $data );
@@ -196,12 +210,26 @@ class SearchReplacer {
 				} else {
 					try {
 						$is_array_access = $data instanceof \ArrayAccess;
+						$properties      = array();
 						foreach ( $data as $key => $value ) {
-							$value = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+							$properties[ $key ] = $value;
+						}
+						foreach ( $properties as $key => $value ) {
+							$value   = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+							$new_key = $key;
+							if ( $this->recurse_keys && is_string( $key ) ) {
+								$new_key = $this->replace_string( $key );
+							}
 							if ( $is_array_access ) {
-								$data[ $key ] = $value;
+								if ( $new_key !== $key ) {
+									unset( $data[ $key ] );
+								}
+								$data[ $new_key ] = $value;
 							} else {
-								$data->$key = $value;
+								if ( $new_key !== $key ) {
+									unset( $data->$key );
+								}
+								$data->$new_key = $value;
 							}
 						}
 					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
@@ -220,34 +248,7 @@ class SearchReplacer {
 					}
 				}
 			} elseif ( is_string( $data ) ) {
-				if ( $this->logging ) {
-					$old_data = $data;
-				}
-				if ( $this->regex ) {
-					$search_regex  = $this->regex_delimiter;
-					$search_regex .= $this->from;
-					$search_regex .= $this->regex_delimiter;
-					$search_regex .= $this->regex_flags;
-
-					$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
-					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
-						\WP_CLI::warning(
-							sprintf(
-								'The provided regular expression threw a PCRE error - %s',
-								$this->preg_error_message( $result )
-							)
-						);
-					}
-					$data = $result;
-				} else {
-					$data = str_replace( $this->from, $this->to, $data );
-					if ( $this->from_json !== $this->from ) {
-						$data = str_replace( $this->from_json, $this->to_json, $data );
-					}
-				}
-				if ( $this->logging && $old_data !== $data ) {
-					$this->log_data[] = $old_data;
-				}
+				$data = $this->replace_string( $data );
 			}
 
 			if ( $serialised ) {
@@ -255,6 +256,48 @@ class SearchReplacer {
 			}
 		} catch ( Exception $exception ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Intentionally empty.
 
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Replace occurrences of the search string within a single string.
+	 *
+	 * Used for values as well as array keys and object property names when
+	 * key recursion is enabled.
+	 *
+	 * @param string $data The string to operate on.
+	 * @return string The string with all replacements made as needed.
+	 */
+	private function replace_string( $data ) {
+		if ( $this->logging ) {
+			$old_data = $data;
+		}
+		if ( $this->regex ) {
+			$search_regex  = $this->regex_delimiter;
+			$search_regex .= $this->from;
+			$search_regex .= $this->regex_delimiter;
+			$search_regex .= $this->regex_flags;
+
+			$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+			if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
+				\WP_CLI::warning(
+					sprintf(
+						'The provided regular expression threw a PCRE error - %s',
+						$this->preg_error_message( $result )
+					)
+				);
+			}
+			$data = $result;
+		} else {
+			$data = str_replace( $this->from, $this->to, $data );
+			if ( $this->from_json !== $this->from ) {
+				$data = str_replace( $this->from_json, $this->to_json, $data );
+			}
+		}
+		if ( $this->logging && $old_data !== $data ) {
+			$this->log_data[] = $old_data;
 		}
 
 		return $data;
