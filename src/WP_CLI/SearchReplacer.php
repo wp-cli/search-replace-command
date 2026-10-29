@@ -35,6 +35,11 @@ class SearchReplacer {
 	/**
 	 * @var bool
 	 */
+	private $recurse_keys;
+
+	/**
+	 * @var bool
+	 */
 	private $regex;
 
 	/**
@@ -81,11 +86,13 @@ class SearchReplacer {
 	 * @param string  $regex_delimiter Delimiter for regular expression.
 	 * @param bool    $logging         Whether logging.
 	 * @param integer $regex_limit     The maximum possible replacements for each pattern in each subject string.
+	 * @param bool    $recurse_keys    Should array keys and object property names be recursively replaced?
 	 */
-	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1 ) {
+	public function __construct( $from, $to, $recurse_objects = false, $regex = false, $regex_flags = '', $regex_delimiter = '/', $logging = false, $regex_limit = -1, $recurse_keys = false ) {
 		$this->from            = $from;
 		$this->to              = $to;
 		$this->recurse_objects = $recurse_objects;
+		$this->recurse_keys    = $recurse_keys;
 		$this->regex           = $regex;
 		$this->regex_flags     = $regex_flags;
 		$this->regex_delimiter = $regex_delimiter;
@@ -180,9 +187,13 @@ class SearchReplacer {
 			if ( false !== $unserialized ) {
 				$data = $this->run_recursively( $unserialized, true, $recursion_level + 1 );
 			} elseif ( is_array( $data ) ) {
-				$keys = array_keys( $data );
-				foreach ( $keys as $key ) {
-					$data[ $key ] = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
+				if ( $this->recurse_keys ) {
+					$data = $this->replace_array_keys( $data, $recursion_level, $visited_data );
+				} else {
+					$keys = array_keys( $data );
+					foreach ( $keys as $key ) {
+						$data[ $key ] = $this->run_recursively( $data[ $key ], false, $recursion_level + 1, $visited_data );
+					}
 				}
 			} elseif ( $this->recurse_objects && ( is_object( $data ) || $data instanceof \__PHP_Incomplete_Class ) ) {
 				if ( $data instanceof \__PHP_Incomplete_Class ) {
@@ -196,12 +207,16 @@ class SearchReplacer {
 				} else {
 					try {
 						$is_array_access = $data instanceof \ArrayAccess;
-						foreach ( $data as $key => $value ) {
-							$value = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
-							if ( $is_array_access ) {
-								$data[ $key ] = $value;
-							} else {
-								$data->$key = $value;
+						if ( $this->recurse_keys ) {
+							$data = $this->replace_object_property_names( $data, $is_array_access, $recursion_level, $visited_data );
+						} else {
+							foreach ( $data as $key => $value ) {
+								$value = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+								if ( $is_array_access ) {
+									$data[ $key ] = $value;
+								} else {
+									$data->$key = $value;
+								}
 							}
 						}
 					} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
@@ -220,34 +235,7 @@ class SearchReplacer {
 					}
 				}
 			} elseif ( is_string( $data ) ) {
-				if ( $this->logging ) {
-					$old_data = $data;
-				}
-				if ( $this->regex ) {
-					$search_regex  = $this->regex_delimiter;
-					$search_regex .= $this->from;
-					$search_regex .= $this->regex_delimiter;
-					$search_regex .= $this->regex_flags;
-
-					$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
-					if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
-						\WP_CLI::warning(
-							sprintf(
-								'The provided regular expression threw a PCRE error - %s',
-								$this->preg_error_message( $result )
-							)
-						);
-					}
-					$data = $result;
-				} else {
-					$data = str_replace( $this->from, $this->to, $data );
-					if ( $this->from_json !== $this->from ) {
-						$data = str_replace( $this->from_json, $this->to_json, $data );
-					}
-				}
-				if ( $this->logging && $old_data !== $data ) {
-					$this->log_data[] = $old_data;
-				}
+				$data = $this->replace_string( $data );
 			}
 
 			if ( $serialised ) {
@@ -258,6 +246,156 @@ class SearchReplacer {
 		}
 
 		return $data;
+	}
+
+	/**
+	 * Replace occurrences of the search string within a single string.
+	 *
+	 * Used for values as well as array keys and object property names when
+	 * key recursion is enabled.
+	 *
+	 * @param string $data The string to operate on.
+	 * @return string The string with all replacements made as needed.
+	 */
+	private function replace_string( $data ) {
+		if ( $this->logging ) {
+			$old_data = $data;
+		}
+		if ( $this->regex ) {
+			$search_regex  = $this->regex_delimiter;
+			$search_regex .= $this->from;
+			$search_regex .= $this->regex_delimiter;
+			$search_regex .= $this->regex_flags;
+
+			$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
+			if ( null === $result || PREG_NO_ERROR !== preg_last_error() ) {
+				\WP_CLI::warning(
+					sprintf(
+						'The provided regular expression threw a PCRE error - %s',
+						$this->preg_error_message( $result )
+					)
+				);
+			}
+			$data = $result;
+		} else {
+			$data = str_replace( $this->from, $this->to, $data );
+			if ( $this->from_json !== $this->from ) {
+				$data = str_replace( $this->from_json, $this->to_json, $data );
+			}
+		}
+		if ( $this->logging && $old_data !== $data ) {
+			$this->log_data[] = $old_data;
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Recurse into an array, replacing string keys as well as values.
+	 *
+	 * Renamed keys keep their original position. Shared references between
+	 * elements are preserved by iterating by reference. When two keys would
+	 * map onto the same key, the array is left unchanged and a warning is
+	 * emitted instead of silently discarding a value.
+	 *
+	 * @param array $data            The array to process.
+	 * @param int   $recursion_level Current recursion depth.
+	 * @param array $visited_data    Previously seen arrays and objects.
+	 * @return array The processed array.
+	 */
+	private function replace_array_keys( $data, $recursion_level, $visited_data ) {
+		$renames = array();
+		foreach ( array_keys( $data ) as $key ) {
+			$renames[ $key ] = is_string( $key ) ? $this->replace_string( $key ) : $key;
+		}
+		if ( count( array_unique( $renames, SORT_REGULAR ) ) !== count( $renames ) ) {
+			\WP_CLI::warning( 'Skipping key replacement for an array: two keys would map onto the same key and a value would be lost.' );
+			return $data;
+		}
+		$replaced = array();
+		foreach ( $data as $key => &$value ) {
+			$value                        = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
+			$replaced[ $renames[ $key ] ] =& $value;
+		}
+		unset( $value );
+		return $replaced;
+	}
+
+	/**
+	 * Recurse into an object, replacing string property names as well as values.
+	 *
+	 * When two property names would map onto the same name, the object is
+	 * left unchanged and a warning is emitted instead of silently
+	 * discarding a value.
+	 *
+	 * @param object $data            The object to process.
+	 * @param bool   $is_array_access Whether the object implements ArrayAccess.
+	 * @param int    $recursion_level Current recursion depth.
+	 * @param array  $visited_data    Previously seen arrays and objects.
+	 * @return object The processed object.
+	 */
+	private function replace_object_property_names( $data, $is_array_access, $recursion_level, $visited_data ) {
+		$renames = array();
+		foreach ( $data as $key => $value ) {
+			$renames[ $key ] = is_string( $key ) ? $this->replace_string( $key ) : $key;
+		}
+		if ( count( array_unique( $renames, SORT_REGULAR ) ) !== count( $renames ) ) {
+			\WP_CLI::warning( 'Skipping key replacement for an object: two property names would map onto the same name and a value would be lost.' );
+			return $data;
+		}
+		foreach ( $renames as $key => $new_key ) {
+			$value = $this->run_recursively( $this->read_property( $data, $is_array_access, $key ), false, $recursion_level + 1, $visited_data );
+			if ( $new_key !== $key ) {
+				$this->remove_property( $data, $is_array_access, $key );
+			}
+			$this->write_property( $data, $is_array_access, $new_key, $value );
+		}
+		return $data;
+	}
+
+	/**
+	 * Read one property or offset from an object or ArrayAccess instance.
+	 *
+	 * @param object $data            The object to read from.
+	 * @param bool   $is_array_access Whether the object implements ArrayAccess.
+	 * @param string $key             The property name or offset.
+	 * @return mixed The property value.
+	 */
+	private function read_property( $data, $is_array_access, $key ) {
+		return $is_array_access ? $data[ $key ] : $data->$key;
+	}
+
+	/**
+	 * Remove one property or offset from an object or ArrayAccess instance.
+	 *
+	 * @param object $data            The object to modify, by reference.
+	 * @param bool   $is_array_access Whether the object implements ArrayAccess.
+	 * @param string $key             The property name or offset.
+	 * @return void
+	 */
+	private function remove_property( &$data, $is_array_access, $key ) {
+		if ( $is_array_access ) {
+			unset( $data[ $key ] );
+		} else {
+			unset( $data->$key );
+		}
+	}
+
+	/**
+	 * Write one property or offset on an object or ArrayAccess instance.
+	 *
+	 * @param object $data            The object to modify, by reference.
+	 * @param bool   $is_array_access Whether the object implements ArrayAccess.
+	 * @param string $key             The property name or offset.
+	 * @param mixed  $value           The value to write.
+	 * @return void
+	 */
+	private function write_property( &$data, $is_array_access, $key, $value ) {
+		if ( $is_array_access ) {
+			$data[ $key ] = $value;
+		} else {
+			$data->$key = $value;
+		}
 	}
 
 	/**
