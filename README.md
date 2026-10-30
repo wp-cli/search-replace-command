@@ -23,6 +23,13 @@ multisite, this will just be the tables for the current site unless
 Search/replace intelligently handles PHP serialized data, and does not
 change primary key values.
 
+Note: URLs stored inside JSON-encoded data (such as block attributes or
+form configurations) often have forward slashes escaped with backslashes
+(e.g. `https:\/\/example.com`). Standard search/replace with unescaped
+URLs will not match these. To replace URLs in JSON-encoded strings, run
+an additional search/replace with escaped slashes (e.g.
+`wp search-replace 'https:\/\/example.com' 'https:\/\/example.test'`).
+
 Tables without a primary key are skipped. To check whether a table has a
 primary key, run `wp db query 'DESCRIBE <table>'` and look for 'PRI' in
 the Key column.
@@ -143,6 +150,9 @@ the Key column.
 
     # Search and replace but skip one column
     $ wp search-replace 'http://example.test' 'http://example.com' --skip-columns=guid
+
+    # Search/replace JSON-encoded URLs (where forward slashes are escaped with backslashes)
+    $ wp search-replace 'https:\/\/example.com' 'https:\/\/example.test'
 
     # Run search/replace operation but dont save in database
     $ wp search-replace 'foo' 'bar' wp_posts wp_postmeta wp_terms --dry-run
