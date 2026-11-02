@@ -23,11 +23,6 @@ multisite, this will just be the tables for the current site unless
 Search/replace intelligently handles PHP serialized data, and does not
 change primary key values.
 
-The JSON-encoded form of the search string is replaced as well, so a
-search for `https://example.com` also matches `https:\/\/example.com`
-in JSON stored in the database. This does not apply with `--regex`,
-where the pattern itself has to account for escaped slashes.
-
 Tables without a primary key are skipped. To check whether a table has a
 primary key, run `wp db query 'DESCRIBE <table>'` and look for 'PRI' in
 the Key column.
