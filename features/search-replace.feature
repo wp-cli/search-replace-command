@@ -1592,3 +1592,50 @@ Feature: Do global search/replace
       """
       Table is read-only
       """
+
+  @require-mysql
+  Scenario: Report types and counts are based on serialized data in the column
+    Given a WP install
+    And I run `wp option add sr_serialized_match '{"url":"https://match.example/x"}' --format=json`
+    And I run `wp option add sr_plain_match 'see https://match.example/y'`
+    And I run `wp post create --post_title='Has match.example in it' --post_content='Plain match.example content' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    # option_value holds serialized data (the option above), so it is handled in PHP.
+    # post_title has no serialized data, so it is handled in SQL. post_excerpt has no matches.
+    When I run `wp search-replace match.example other.example --dry-run --include-columns=option_value,post_title,post_excerpt`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 2            | PHP  |
+      | wp_posts   | post_title   | 1            | SQL  |
+      | wp_posts   | post_excerpt | 0            | SQL  |
+
+    # A column with serialized data is reported as PHP even when none of it matches.
+    When I run `wp search-replace no-such-string other.example --dry-run --include-columns=option_value`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 0            | PHP  |
+
+    When I run `wp search-replace match.example other.example`
+    Then STDOUT should contain:
+      """
+      Success: Made 4 replacements.
+      """
+
+    When I run `wp option get sr_serialized_match --format=json`
+    Then STDOUT should be:
+      """
+      {"url":"https:\/\/other.example\/x"}
+      """
+
+    When I run `wp option get sr_plain_match`
+    Then STDOUT should be:
+      """
+      see https://other.example/y
+      """
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should be:
+      """
+      Plain other.example content
+      """
