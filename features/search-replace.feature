@@ -1579,9 +1579,8 @@ Feature: Do global search/replace
   @require-mysql
   Scenario: Warn when updating a table fails due to a database error
     Given a WP install
-    And I run `wp db query "CREATE TABLE wp_readonly_test ( id int(11) unsigned NOT NULL AUTO_INCREMENT, data TEXT, PRIMARY KEY (id) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"`
-    And I run `wp db query "INSERT INTO wp_readonly_test (data) VALUES ('old-value');"`
-    And I run `wp db query "CREATE TRIGGER prevent_update BEFORE UPDATE ON wp_readonly_test FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Table is read-only';"`
+    And I run `wp db query "CREATE TABLE wp_readonly_test ( id int(11) unsigned NOT NULL AUTO_INCREMENT, data VARCHAR(191), PRIMARY KEY (id), UNIQUE KEY data (data) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"`
+    And I run `wp db query "INSERT INTO wp_readonly_test (data) VALUES ('old-value'), ('new-value');"`
 
     When I try `wp search-replace old-value new-value --all-tables-with-prefix`
     Then STDERR should contain:
@@ -1590,5 +1589,5 @@ Feature: Do global search/replace
       """
     And STDERR should contain:
       """
-      Table is read-only
+      Duplicate entry
       """
