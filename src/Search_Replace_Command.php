@@ -566,11 +566,20 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$column_stats = self::get_column_stats( $table, $columns, $old );
 			}
 
-			foreach ( $columns as $col ) {
+			$stats_outdated = false;
+
+			foreach ( $columns as $i => $col ) {
 
 				if ( $this->verbose && 'count' !== $this->format ) {
 					$this->start_time = microtime( true );
 					WP_CLI::log( sprintf( 'Checking: %s.%s', $table, $col ) );
+				}
+
+				// A write to one column can change others in the same table, through a trigger.
+				// So gather the stats of the remaining columns again after each write.
+				if ( $stats_outdated && null !== $column_stats ) {
+					$column_stats   = self::get_column_stats( $table, array_slice( $columns, $i ), $old );
+					$stats_outdated = false;
 				}
 
 				$serial_row = false;
@@ -612,6 +621,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 					} else {
 						$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new );
 					}
+				}
+
+				if ( $count && ! $this->dry_run && ! $this->export_handle ) {
+					$stats_outdated = true;
 				}
 
 				if ( $this->report && ( $count || ! $this->report_changed_only ) ) {
