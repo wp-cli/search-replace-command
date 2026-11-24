@@ -1838,8 +1838,13 @@ Feature: Do global search/replace
       """
       <?php
       $replacer = new \WP_CLI\SearchReplacer( 'old', 'new', true, false, '', '/', false, -1, true );
-      echo $replacer->run( serialize( array( 8 => 'v1', '08' => 'v2', 'old' => 'v3' ) ) ), "\n";
-      echo $replacer->run( serialize( (object) array( 8 => 'v1', '08' => 'v2', 'old' => 'v3' ) ) ), "\n";
+      $data     = array(
+          8     => 'v1',
+          '08'  => 'v2',
+          'old' => 'v3',
+      );
+      echo $replacer->run( serialize( $data ) ), "\n";
+      echo $replacer->run( serialize( (object) $data ) ), "\n";
       """
 
     When I run `wp eval-file recurse-keys-storage-identity.php`
@@ -1863,7 +1868,11 @@ Feature: Do global search/replace
       """
       <?php
       $replacer = new \WP_CLI\SearchReplacer( 'old', 'newold', true, false, '', '/', false, -1, true );
-      $result   = unserialize( $replacer->run( serialize( (object) array( 'old' => 'v1', 'newold' => 'v2' ) ) ) );
+      $data     = array(
+          'old'    => 'v1',
+          'newold' => 'v2',
+      );
+      $result   = unserialize( $replacer->run( serialize( (object) $data ) ) );
       echo json_encode( $result );
       """
 
@@ -1894,7 +1903,14 @@ Feature: Do global search/replace
       $replacer = new \WP_CLI\SearchReplacer( 'old', 'NEW', true, false, '', '/', false, -1, true );
       $result   = unserialize(
           $replacer->run(
-              serialize( new \WpOrg\Requests\Utility\CaseInsensitiveDictionary( [ 'old' => 'v1', 'new' => 'v2' ] ) )
+              serialize(
+                  new \WpOrg\Requests\Utility\CaseInsensitiveDictionary(
+                      [
+                          'old' => 'v1',
+                          'new' => 'v2',
+                      ]
+                  )
+              )
           ),
           [ 'allowed_classes' => [ 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ]
       );
