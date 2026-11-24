@@ -1831,3 +1831,86 @@ Feature: Do global search/replace
       """
       HASREF
       """
+
+  Scenario: Key collision detection with --recurse-keys compares keys as PHP stores them
+    Given a WP install
+    And a recurse-keys-storage-identity.php file:
+      """
+      <?php
+      $replacer = new \WP_CLI\SearchReplacer( 'old', 'new', true, false, '', '/', false, -1, true );
+      echo $replacer->run( serialize( array( 8 => 'v1', '08' => 'v2', 'old' => 'v3' ) ) ), "\n";
+      echo $replacer->run( serialize( (object) array( 8 => 'v1', '08' => 'v2', 'old' => 'v3' ) ) ), "\n";
+      """
+
+    When I run `wp eval-file recurse-keys-storage-identity.php`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      a:3:{i:8;s:2:"v1";s:2:"08";s:2:"v2";s:3:"new";s:2:"v3";}
+      """
+    And STDOUT should contain:
+      """
+      s:3:"new";s:2:"v3";}
+      """
+    And STDOUT should not contain:
+      """
+      "old"
+      """
+
+  Scenario: Overlapping property names are renamed without losing values with --recurse-keys
+    Given a WP install
+    And a recurse-keys-overlap.php file:
+      """
+      <?php
+      $replacer = new \WP_CLI\SearchReplacer( 'old', 'newold', true, false, '', '/', false, -1, true );
+      $result   = unserialize( $replacer->run( serialize( (object) array( 'old' => 'v1', 'newold' => 'v2' ) ) ) );
+      echo json_encode( $result );
+      """
+
+    When I run `wp eval-file recurse-keys-overlap.php`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      "newold":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "newnewold":"v2"
+      """
+
+  # `CaseInsensitiveDictionary` is from Requests 2.0, which was added in 6.2.
+  @require-wp-6.2
+  Scenario: Case-insensitive dictionary offsets are not renamed onto an existing offset with --recurse-keys
+    Given a WP install
+    And a recurse-keys-case-insensitive.php file:
+      """
+      <?php
+      WP_CLI::add_hook(
+          'search_replace_unserialize_options',
+          function () {
+              return [ 'allowed_classes' => [ 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ];
+          }
+      );
+      $replacer = new \WP_CLI\SearchReplacer( 'old', 'NEW', true, false, '', '/', false, -1, true );
+      $result   = unserialize(
+          $replacer->run(
+              serialize( new \WpOrg\Requests\Utility\CaseInsensitiveDictionary( [ 'old' => 'v1', 'new' => 'v2' ] ) )
+          ),
+          [ 'allowed_classes' => [ 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ]
+      );
+      echo json_encode( $result->getAll() );
+      """
+
+    When I try `wp eval-file recurse-keys-case-insensitive.php`
+    Then STDERR should contain:
+      """
+      two property names would map onto the same name
+      """
+    And STDOUT should contain:
+      """
+      "old":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "new":"v2"
+      """

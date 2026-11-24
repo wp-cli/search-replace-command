@@ -308,7 +308,7 @@ class SearchReplacer {
 		foreach ( array_keys( $data ) as $key ) {
 			$renames[ $key ] = is_string( $key ) ? $this->replace_string( $key ) : $key;
 		}
-		if ( count( array_unique( $renames, SORT_REGULAR ) ) !== count( $renames ) ) {
+		if ( $this->has_destination_collision( $renames, false ) ) {
 			\WP_CLI::warning( 'Skipping key replacement for an array: two keys would map onto the same key and a value would be lost.' );
 			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
@@ -324,9 +324,17 @@ class SearchReplacer {
 	/**
 	 * Recurse into an object, replacing string property names as well as values.
 	 *
-	 * When two property names would map onto the same name, the property
-	 * names are left unchanged (values are still replaced) and a warning is
-	 * emitted instead of silently discarding a value.
+	 * All values are read and processed before the object is modified, so a
+	 * renamed property can never overwrite a source property that has not
+	 * been read yet. When two property names would map onto the same name,
+	 * the property names are left unchanged (values are still replaced) and a
+	 * warning is emitted instead of silently discarding a value.
+	 *
+	 * ArrayAccess implementations may normalize offsets on write. Offsets are
+	 * only renamed for implementations whose offset semantics are known
+	 * (ArrayObject, ArrayIterator and the Requests case-insensitive
+	 * dictionary); for any other ArrayAccess implementation the original
+	 * offsets are kept.
 	 *
 	 * @param object $data            The object to process.
 	 * @param bool   $is_array_access Whether the object implements ArrayAccess.
@@ -339,18 +347,77 @@ class SearchReplacer {
 		foreach ( $data as $key => $value ) {
 			$renames[ $key ] = is_string( $key ) ? $this->replace_string( $key ) : $key;
 		}
-		if ( count( array_unique( $renames, SORT_REGULAR ) ) !== count( $renames ) ) {
+
+		$case_insensitive = false;
+		$keep_offsets     = false;
+		if ( $is_array_access ) {
+			if ( $data instanceof \WpOrg\Requests\Utility\CaseInsensitiveDictionary || is_a( $data, 'Requests_Utility_CaseInsensitiveDictionary' ) ) {
+				$case_insensitive = true;
+			} elseif ( ! $data instanceof \ArrayObject && ! $data instanceof \ArrayIterator ) {
+				$keep_offsets = true;
+			}
+		}
+
+		$renamed = false;
+		foreach ( $renames as $key => $new_key ) {
+			if ( $new_key !== $key ) {
+				$renamed = true;
+				break;
+			}
+		}
+
+		if ( $renamed && $keep_offsets ) {
+			\WP_CLI::warning(
+				sprintf(
+					'Skipping key replacement for an object of class "%s": its offset semantics are unknown.',
+					get_class( $data )
+				)
+			);
+			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
+		} elseif ( $renamed && $this->has_destination_collision( $renames, $case_insensitive ) ) {
 			\WP_CLI::warning( 'Skipping key replacement for an object: two property names would map onto the same name and a value would be lost.' );
 			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
+
+		// Stage all processed values before touching the object.
+		$values = array();
 		foreach ( $renames as $key => $new_key ) {
-			$value = $this->run_recursively( $this->read_property( $data, $is_array_access, $key ), false, $recursion_level + 1, $visited_data );
+			$values[ $key ] = $this->run_recursively( $this->read_property( $data, $is_array_access, $key ), false, $recursion_level + 1, $visited_data );
+		}
+		foreach ( $renames as $key => $new_key ) {
 			if ( $new_key !== $key ) {
 				$this->remove_property( $data, $is_array_access, $key );
 			}
-			$this->write_property( $data, $is_array_access, $new_key, $value );
+		}
+		foreach ( $renames as $key => $new_key ) {
+			$this->write_property( $data, $is_array_access, $new_key, $values[ $key ] );
 		}
 		return $data;
+	}
+
+	/**
+	 * Check whether two renamed keys would end up as the same stored key.
+	 *
+	 * Destination keys are compared by how PHP actually stores them as array
+	 * keys (so `8` and `'08'` stay distinct, while `'8'` and `8` collide), and
+	 * optionally case-insensitively for containers that normalize offsets.
+	 *
+	 * @param array $renames          Map of original key to destination key.
+	 * @param bool  $case_insensitive Whether destination keys are compared case-insensitively.
+	 * @return bool Whether at least two destination keys collide.
+	 */
+	private function has_destination_collision( $renames, $case_insensitive ) {
+		$seen = array();
+		foreach ( $renames as $new_key ) {
+			if ( $case_insensitive && is_string( $new_key ) ) {
+				$new_key = strtolower( $new_key );
+			}
+			if ( isset( $seen[ $new_key ] ) ) {
+				return true;
+			}
+			$seen[ $new_key ] = true;
+		}
+		return false;
 	}
 
 	/**
