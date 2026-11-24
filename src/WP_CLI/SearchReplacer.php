@@ -295,8 +295,8 @@ class SearchReplacer {
 	 *
 	 * Renamed keys keep their original position. Shared references between
 	 * elements are preserved by iterating by reference. When two keys would
-	 * map onto the same key, the array is left unchanged and a warning is
-	 * emitted instead of silently discarding a value.
+	 * map onto the same key, the keys are left unchanged (values are still
+	 * replaced) and a warning is emitted instead of silently discarding a value.
 	 *
 	 * @param array $data            The array to process.
 	 * @param int   $recursion_level Current recursion depth.
@@ -310,7 +310,7 @@ class SearchReplacer {
 		}
 		if ( count( array_unique( $renames, SORT_REGULAR ) ) !== count( $renames ) ) {
 			\WP_CLI::warning( 'Skipping key replacement for an array: two keys would map onto the same key and a value would be lost.' );
-			return $data;
+			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
 		$replaced = array();
 		foreach ( $data as $key => &$value ) {
@@ -324,9 +324,9 @@ class SearchReplacer {
 	/**
 	 * Recurse into an object, replacing string property names as well as values.
 	 *
-	 * When two property names would map onto the same name, the object is
-	 * left unchanged and a warning is emitted instead of silently
-	 * discarding a value.
+	 * When two property names would map onto the same name, the property
+	 * names are left unchanged (values are still replaced) and a warning is
+	 * emitted instead of silently discarding a value.
 	 *
 	 * @param object $data            The object to process.
 	 * @param bool   $is_array_access Whether the object implements ArrayAccess.
@@ -341,7 +341,7 @@ class SearchReplacer {
 		}
 		if ( count( array_unique( $renames, SORT_REGULAR ) ) !== count( $renames ) ) {
 			\WP_CLI::warning( 'Skipping key replacement for an object: two property names would map onto the same name and a value would be lost.' );
-			return $data;
+			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
 		foreach ( $renames as $key => $new_key ) {
 			$value = $this->run_recursively( $this->read_property( $data, $is_array_access, $key ), false, $recursion_level + 1, $visited_data );

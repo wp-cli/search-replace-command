@@ -1721,7 +1721,7 @@ Feature: Do global search/replace
     And a setup-recurse-keys-collision.php file:
       """
       <?php
-      update_option( 'recurse_keys_collision_test', array( 'https://old.example.com/key' => 'v1', 'https://new.example.com/key' => 'v2' ), false );
+      update_option( 'recurse_keys_collision_test', array( 'https://old.example.com/key' => 'v1', 'https://new.example.com/key' => 'v2', 'other' => 'https://old.example.com/value' ), false );
       """
     And a check-recurse-keys-collision.php file:
       """
@@ -1751,6 +1751,10 @@ Feature: Do global search/replace
       """
       "https://new.example.com/key":"v2"
       """
+    And STDOUT should contain:
+      """
+      "other":"https://new.example.com/value"
+      """
 
   @require-mysql
   Scenario: Refuse to rename colliding object property names with --recurse-keys
@@ -1758,7 +1762,7 @@ Feature: Do global search/replace
     And a setup-recurse-keys-object-collision.php file:
       """
       <?php
-      update_option( 'recurse_keys_object_collision_test', (object) array( 'https://old.example.com/prop' => 'v1', 'https://new.example.com/prop' => 'v2' ), false );
+      update_option( 'recurse_keys_object_collision_test', (object) array( 'https://old.example.com/prop' => 'v1', 'https://new.example.com/prop' => 'v2', 'other' => 'https://old.example.com/value' ), false );
       """
     And a check-recurse-keys-object-collision.php file:
       """
@@ -1787,6 +1791,10 @@ Feature: Do global search/replace
     And STDOUT should contain:
       """
       "https://new.example.com/prop":"v2"
+      """
+    And STDOUT should contain:
+      """
+      "other":"https://new.example.com/value"
       """
 
   @require-mysql
