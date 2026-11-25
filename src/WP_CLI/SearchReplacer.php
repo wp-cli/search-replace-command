@@ -291,6 +291,24 @@ class SearchReplacer {
 	}
 
 	/**
+	 * Replace occurrences of the search string within an array key or property name.
+	 *
+	 * Integer keys are returned unchanged. If the replacement fails (for
+	 * example a PCRE error in regex mode), the original key is kept instead of
+	 * turning it into an empty string.
+	 *
+	 * @param int|string $key The key or property name.
+	 * @return int|string The replaced key, or the original key.
+	 */
+	private function replace_key( $key ) {
+		if ( ! is_string( $key ) ) {
+			return $key;
+		}
+		$new_key = $this->replace_string( $key );
+		return is_string( $new_key ) ? $new_key : $key;
+	}
+
+	/**
 	 * Recurse into an array, replacing string keys as well as values.
 	 *
 	 * Renamed keys keep their original position. Shared references between
@@ -306,7 +324,7 @@ class SearchReplacer {
 	private function replace_array_keys( $data, $recursion_level, $visited_data ) {
 		$renames = array();
 		foreach ( array_keys( $data ) as $key ) {
-			$renames[ $key ] = is_string( $key ) ? $this->replace_string( $key ) : $key;
+			$renames[ $key ] = $this->replace_key( $key );
 		}
 		if ( $this->has_destination_collision( $renames, false ) ) {
 			\WP_CLI::warning( 'Skipping key replacement for an array: two keys would map onto the same key and a value would be lost.' );
@@ -345,7 +363,7 @@ class SearchReplacer {
 	private function replace_object_property_names( $data, $is_array_access, $recursion_level, $visited_data ) {
 		$renames = array();
 		foreach ( $data as $key => $value ) {
-			$renames[ $key ] = is_string( $key ) ? $this->replace_string( $key ) : $key;
+			$renames[ $key ] = $this->replace_key( $key );
 		}
 
 		$case_insensitive = false;

@@ -1976,3 +1976,30 @@ Feature: Do global search/replace
       """
       "new":"v2"
       """
+
+  @require-mysql
+  Scenario: Keep the original key when a regex replacement fails with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-pcre.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_pcre', array( 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' => 'keep!' ) );
+      """
+    And a check-recurse-keys-pcre.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_pcre' ) );
+      """
+    And I run `wp eval-file setup-recurse-keys-pcre.php`
+
+    When I try `wp search-replace '^(a+\s?)+$' 'x' wp_options --include-columns=option_value --regex --recurse-keys`
+    Then STDERR should contain:
+      """
+      The provided regular expression threw a PCRE error
+      """
+
+    When I run `wp eval-file check-recurse-keys-pcre.php`
+    Then STDOUT should be:
+      """
+      {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!":"keep!"}
+      """
