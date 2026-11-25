@@ -139,6 +139,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $where = [];
 
 	/**
+	 * Whether revisions (and their post meta) are excluded, via --no-revisions.
+	 *
+	 * @var bool
+	 */
+	private $exclude_revisions = false;
+
+	/**
 	 * @var string|false
 	 */
 	private $callback;
@@ -228,17 +235,21 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * [--where=<row-col-spec>]
 	 * : Perform the replacement on specific rows. Use semi-colon to
-	 * specify multiple specifications.
+	 * specify multiple specifications. Only the tables named in --where are processed.
 	 * <row-col-spec> format: <table>[,table]:[column,...]:quoted-SQL-condition
+	 * Cannot be combined with --export.
 	 *
 	 * [--revisions]
-	 * : Include revisions in the search/replace. Defaults to true; pass --no-revisions to exclude revisions (identical to --where='posts::post_status="publish";postmeta::post_id IN (SELECT ID FROM {posts} WHERE post_status="publish")').
+	 * : Include revisions in the search/replace. Defaults to true; pass --no-revisions to skip
+	 * posts of the `revision` post type and their post meta, in every processed site.
+	 * Cannot be combined with --export.
 	 *
 	 * [--precise]
 	 * : Force the use of PHP (instead of SQL) for all columns. By default, the command
 	 * uses fast SQL queries, but automatically switches to PHP for columns containing
 	 * serialized data. Use this flag to ensure PHP processes all columns, which is
-	 * slower but handles complex serialized data structures more reliably.     * If --callback is specified, --precise is inferred.
+	 * slower but handles complex serialized data structures more reliably.
+	 * If --callback is specified, --precise is inferred.
 	 *
 	 * [--recurse-objects]
 	 * : Enable recursing into objects to replace strings. Defaults to true;
@@ -248,12 +259,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Prints rows to the console as they're updated.
 	 *
 	 * [--callback=<user-function>]
-	 * : Runs a user-specified function on each string that contains <old>. The callback is called as follows:
+	 * : Runs a user-specified function on each string that contains <old> (or matches it, with --regex). The callback is called as follows:
 	 *   call_user_func( 'callback', $data, $new, $search_regex, $opts )
-	 *   * $data is the matched string
+	 *   * $data is the whole string that contains the match
 	 *   * $new is the replacement string
 	 *   * $search_regex is the regex pattern (if applicable, null otherwise)
-	 *   * $opts is an array of options.
+	 *   * $opts is an array with the 'table', the 'col' and the row's primary 'key' values.
+	 * The callback must return the new string.
 	 *
 	 * [--regex]
 	 * : Runs the search using a regular expression (without delimiters).
@@ -421,14 +433,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		$this->skip_columns    = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns', '' ) );
-		$this->skip_tables     = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-tables', '' ) );
-		$this->include_columns = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'include-columns', '' ) ) );
-		$this->where           = $this->develop_where_specs( Utils\get_flag_value( $assoc_args, 'where' ) );
-		$revisions             = Utils\get_flag_value( $assoc_args, 'revisions', true );
-		if ( ! $revisions ) {
-			$this->no_revision();
-		}
+		$this->skip_columns      = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-columns', '' ) );
+		$this->skip_tables       = explode( ',', Utils\get_flag_value( $assoc_args, 'skip-tables', '' ) );
+		$this->include_columns   = array_filter( explode( ',', Utils\get_flag_value( $assoc_args, 'include-columns', '' ) ) );
+		$this->where             = $this->develop_where_specs( Utils\get_flag_value( $assoc_args, 'where' ) );
+		$this->exclude_revisions = ! Utils\get_flag_value( $assoc_args, 'revisions', true );
 
 		if ( $old === $new && ! $this->regex ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
@@ -442,7 +451,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				WP_CLI::error( 'The callback function does not exist. Skipping operation.' );
 			}
 
-			if ( false === $php_only ) {
+			if ( isset( $assoc_args['precise'] ) && ! $php_only ) {
 				WP_CLI::error( 'PHP is required to execute a callback function. --no-precise cannot be set.' );
 			}
 			$php_only = true;
@@ -452,6 +461,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		if ( null !== $export ) {
 			if ( $this->dry_run ) {
 				WP_CLI::error( 'You cannot supply --dry-run and --export at the same time.' );
+			}
+			if ( $this->where || $this->exclude_revisions ) {
+				WP_CLI::error( 'You cannot supply --where or --no-revisions together with --export.' );
 			}
 			if ( true === $export ) {
 				$this->export_handle = STDOUT;
@@ -539,25 +551,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 		// Get table names based on leftover $args or supplied $assoc_args
 		$tables = Utils\wp_get_table_names( $args, $assoc_args );
 		// If a custom `where` conditions were passed, then exclude other tables from processing.
+		// The columns named in a --where specification are handled per table in is_column_searched().
 		if ( $this->where ) {
-			$tables  = array_intersect( $tables, array_keys( $this->where ) );
-			$columns = [];
-			foreach ( array_values( $this->where ) as $_ => $cols ) {
-				$columns = array_merge( $columns, array_keys( $cols ) );
-			}
-			if ( $columns ) {
-				if ( in_array( '*', $columns, true ) ) {
-					$columns = array_filter(
-						$columns,
-						function ( $e ) {
-							return '*' !== $e;
-						}
-					);
-					if ( $this->include_columns ) {
-						WP_CLI::warning( 'Column wildcard (*) was passed to --where. But --include-columns will still restrict replacements to columns: ' . implode( ',', $this->include_columns ) );
-					}
+			$tables = array_values( array_intersect( $tables, array_keys( $this->where ) ) );
+			foreach ( $this->where as $where_cols ) {
+				if ( isset( $where_cols['*'] ) && $this->include_columns ) {
+					WP_CLI::warning( 'Column wildcard (*) was passed to --where. But --include-columns will still restrict replacements to columns: ' . implode( ',', $this->include_columns ) );
+					break;
 				}
-				$this->include_columns = array_merge( $this->include_columns, $columns );
 			}
 		}
 
@@ -636,7 +637,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			// instead of scanning the table several times for every column.
 			$column_stats = null;
 			// The stats cover the whole table, so they cannot be used when --where restricts the rows.
-			if ( ! $this->regex && ! $this->verbose && 'sqlite' !== Utils\get_db_type() && empty( $this->where[ $table ] ) ) {
+			if ( ! $this->regex && ! $this->verbose && 'sqlite' !== Utils\get_db_type() && ! $this->table_has_clauses( $table ) ) {
 				$column_stats = self::get_column_stats( $table, $columns, $old );
 			}
 
@@ -791,7 +792,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 						[
 							'table' => $table,
 							'col'   => $col,
-							'key'   => $primary_keys,
+							'key'   => array_intersect_key( (array) $row, array_flip( $primary_keys ) ),
 						]
 					);
 					if ( $new_value !== $value ) {
@@ -855,11 +856,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 			} elseif ( $has_json ) {
 				// Single query with OR to avoid counting rows that match both forms twice.
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s OR $col_sql LIKE BINARY %s;", '%' . self::esc_like( $old ) . '%', '%' . self::esc_like( $old_json ) . '%' ) );
+				$where = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared -- escaped through self::esc_sql_ident, the --where clauses are raw SQL by design
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE ( $col_sql LIKE BINARY %s OR $col_sql LIKE BINARY %s )", '%' . self::esc_like( $old ) . '%', '%' . self::esc_like( $old_json ) . '%' ) . $where );
 			} else {
 				$where = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s $where;", '%' . self::esc_like( $old ) . '%' ) );
+				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ) . $where );
 			}
 		} else {
 			if ( $this->log_handle ) {
@@ -872,10 +875,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 			if ( $has_json ) {
 				// Single nested REPLACE handles both plain and JSON-encoded forms in one pass.
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE(REPLACE($col_sql, %s, %s), %s, %s) $where;", $old, $new, $old_json, $new_json ) );
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE(REPLACE($col_sql, %s, %s), %s, %s)", $old, $new, $old_json, $new_json ) . $where );
 			} else {
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s) $where;", $old, $new ) );
+				$count = (int) $wpdb->query( $wpdb->prepare( "UPDATE $table_sql SET $col_sql = REPLACE($col_sql, %s, %s)", $old, $new ) . $where );
 			}
 			if ( $wpdb->last_error ) {
 				WP_CLI::warning( sprintf( "Error updating column '%s' in table '%s': %s", $col, $table, $wpdb->last_error ) );
@@ -954,7 +957,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 					continue;
 				}
 
-				$value = $replacer->run( $col_value );
+				$value = $replacer->run(
+					$col_value,
+					false,
+					[
+						'table' => $table,
+						'col'   => $col,
+						'key'   => (array) $keys,
+					]
+				);
 
 				if ( $value === $col_value ) {
 					continue;
@@ -1031,8 +1042,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$next_key_conditions[] = '( ' . implode( ' AND ', $next_key_subconditions ) . ' )';
 			}
 
-			$base_key_condition[] = '( ' . implode( ' OR ', $next_key_conditions ) . ' )';
-			$where_key            = 'WHERE ' . implode( ' AND ', $base_key_condition );
+			$where_key_conditions   = $base_key_condition;
+			$where_key_conditions[] = '( ' . implode( ' OR ', $next_key_conditions ) . ' )';
+			$where_key              = 'WHERE ' . implode( ' AND ', $where_key_conditions );
 		}
 
 		if ( $this->verbose && 'table' === $this->format ) {
@@ -1151,11 +1163,19 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @return bool
 	 */
 	private function is_column_searched( $table, $col ) {
-		if ( ! empty( $this->include_columns ) && ! in_array( $col, $this->include_columns, true ) && ! in_array( $table . '.' . $col, $this->include_columns, true ) ) {
+		if ( in_array( $col, $this->skip_columns, true ) || in_array( $table . '.' . $col, $this->skip_columns, true ) ) {
 			return false;
 		}
 
-		return ! in_array( $col, $this->skip_columns, true ) && ! in_array( $table . '.' . $col, $this->skip_columns, true );
+		$included = empty( $this->include_columns ) || in_array( $col, $this->include_columns, true ) || in_array( $table . '.' . $col, $this->include_columns, true );
+
+		// A --where specification that names columns restricts this table to those columns,
+		// in addition to the columns from --include-columns.
+		if ( isset( $this->where[ $table ] ) && ! isset( $this->where[ $table ]['*'] ) ) {
+			return isset( $this->where[ $table ][ $col ] ) || ( ! empty( $this->include_columns ) && $included );
+		}
+
+		return $included;
 	}
 
 	/**
@@ -1370,7 +1390,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$where_sql = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-		$results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}{$col_sql} FROM {$table_sql} WHERE {$col_sql} LIKE BINARY %s {$where_sql}", '%' . self::esc_like( $old ) . '%' ), ARRAY_N );
+		$results = $wpdb->get_results( $wpdb->prepare( "SELECT {$primary_keys_sql}{$col_sql} FROM {$table_sql} WHERE {$col_sql} LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ) . $where_sql, ARRAY_N );
 
 		if ( empty( $results ) ) {
 			return 0;
@@ -1581,12 +1601,39 @@ class Search_Replace_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Excludes revisions from the search-replace operation.
+	 * Gets the clause that excludes revisions for a posts or postmeta table, with --no-revisions.
+	 *
+	 * Matches the posts and postmeta tables of every site, so that --network works too.
+	 *
+	 * @param string $table The table name.
+	 * @return string|null The clause, or null if no revisions are excluded from the table.
 	 */
-	private function no_revision() {
+	private function get_revision_clause( $table ) {
 		global $wpdb;
-		$this->where[ $wpdb->posts ]['*'][]    = self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' );
-		$this->where[ $wpdb->postmeta ]['*'][] = self::esc_sql_ident( 'post_id' ) . ' IN ( SELECT ID FROM ' . $wpdb->posts . ' WHERE ' . self::esc_sql_ident( 'post_status' ) . '=' . self::esc_sql_value( 'publish' ) . ')';
+
+		if ( ! $this->exclude_revisions || ! preg_match( '/^(' . preg_quote( $wpdb->base_prefix, '/' ) . '(?:[0-9]+_)?)(posts|postmeta)$/', $table, $matches ) ) {
+			return null;
+		}
+
+		$not_revision = self::esc_sql_ident( 'post_type' ) . ' <> ' . self::esc_sql_value( 'revision' );
+
+		if ( 'posts' === $matches[2] ) {
+			return $not_revision;
+		}
+
+		$revision_ids = 'SELECT ' . self::esc_sql_ident( 'ID' ) . ' FROM ' . self::esc_sql_ident( $matches[1] . 'posts' ) . ' WHERE ' . self::esc_sql_ident( 'post_type' ) . ' = ' . self::esc_sql_value( 'revision' );
+
+		return self::esc_sql_ident( 'post_id' ) . " NOT IN ( $revision_ids )";
+	}
+
+	/**
+	 * Whether rows of a table are restricted by --where or --no-revisions.
+	 *
+	 * @param string $table The table name.
+	 * @return bool
+	 */
+	private function table_has_clauses( $table ) {
+		return ! empty( $this->where[ $table ] ) || null !== $this->get_revision_clause( $table );
 	}
 
 	/**
@@ -1597,10 +1644,21 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @return string[] The WHERE clauses.
 	 */
 	private function get_clauses( $table, $column = null ) {
-		return array_filter(
+		$clauses = array_filter(
 			array_merge(
 				$this->where[ $table ][ $column ] ?? [],
-				$this->where[ $table ]['*'] ?? []
+				$this->where[ $table ]['*'] ?? [],
+				[ (string) $this->get_revision_clause( $table ) ]
+			)
+		);
+
+		// Parenthesize each clause, so that an OR in one cannot escape the AND with the others.
+		return array_values(
+			array_map(
+				static function ( $clause ) {
+					return '( ' . $clause . ' )';
+				},
+				$clauses
 			)
 		);
 	}

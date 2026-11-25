@@ -278,3 +278,89 @@ Feature: Test search-replace --where option
       """
       rows affected
       """
+
+  @require-mysql
+  Scenario: Where specifications with and without columns for different tables
+    Given a WP install
+    And I run `wp post create --post_title='Title foo' --post_content='Content foo' --post_status='publish' --porcelain`
+    And save STDOUT as {POST_ID}
+    And I run `wp option add test_option 'option_foo'`
+
+    When I run `wp search-replace 'foo' 'bar' --where='posts:post_title:post_status="publish";options::option_name="test_option"'`
+    Then STDOUT should contain:
+      """
+      Success: Made 2 replacements.
+      """
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title bar
+      """
+
+    When I run `wp post get {POST_ID} --field=content`
+    Then STDOUT should be:
+      """
+      Content foo
+      """
+
+    When I run `wp option get test_option`
+    Then STDOUT should be:
+      """
+      option_bar
+      """
+
+  @require-mysql
+  Scenario: Where conditions with OR and with LIKE patterns
+    Given a WP install
+    And I run `wp post create --post_title='Foo sale' --post_status='publish' --porcelain`
+    And save STDOUT as {SALE_ID}
+    And I run `wp post create --post_title='Foo other' --post_status='publish' --porcelain`
+    And save STDOUT as {OTHER_ID}
+    And I run `wp post create --post_title='nothing here' --post_status='private' --porcelain`
+
+    When I run `wp search-replace 'Foo' 'Bar' --where='posts::post_status="publish" OR post_status="private"' --dry-run`
+    Then STDOUT should contain:
+      """
+      Success: 2 replacements to be made.
+      """
+
+    When I run `wp search-replace 'Foo' 'Bar' --where='posts::post_title LIKE "%sale%"'`
+    Then STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+
+    When I run `wp post get {SALE_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Bar sale
+      """
+
+    When I run `wp post get {OTHER_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Foo other
+      """
+
+  @require-mysql
+  Scenario: Where clause with dry-run and a search string that differs when JSON-encoded
+    Given a WP install
+    And I run `wp post create --post_title='http://Foo.test published' --post_status='publish' --porcelain`
+    And I run `wp post create --post_title='http://Foo.test draft' --post_status='draft' --porcelain`
+
+    When I run `wp search-replace 'http://Foo.test' 'http://bar.test' wp_posts --where='posts::post_status="publish"' --dry-run`
+    Then STDOUT should contain:
+      """
+      Success: 1 replacement to be made.
+      """
+
+  Scenario: Where clause cannot be combined with an export
+    Given a WP install
+
+    When I try `wp search-replace 'foo' 'bar' --where='posts::post_status="publish"' --export=out.sql`
+    Then STDERR should be:
+      """
+      Error: You cannot supply --where or --no-revisions together with --export.
+      """
+    And the return code should be 1

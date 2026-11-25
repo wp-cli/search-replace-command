@@ -150,6 +150,9 @@ Feature: Test search-replace --callback option
       """
       <?php
       function opts_callback( $data, $replacement, $search_regex, $opts ) {
+        if ( empty( $opts['table'] ) || empty( $opts['col'] ) || empty( $opts['key']['ID'] ) ) {
+          throw new Exception( 'Expected $opts to have the table, the column and the primary key values, got: ' . var_export( $opts, true ) );
+        }
         // Only verify opts when we have a match for content columns
         if ( strpos( $data, 'foo' ) !== false && isset( $opts['col'] ) && $opts['col'] === 'post_content' ) {
           // Verify opts parameter exists and has expected structure
@@ -184,4 +187,29 @@ Feature: Test search-replace --callback option
     Then STDOUT should be:
       """
       verified content here
+      """
+
+  @require-mysql
+  Scenario: Callback infers --precise when it is not passed
+    Given a WP install
+    And a callback-function.php file:
+      """
+      <?php
+      function test_callback( $data, $replacement ) {
+        return str_replace( 'foo', strtoupper( $replacement ), $data );
+      }
+      """
+    And I run `wp post create --post_title='foo bar' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I run `wp search-replace 'foo' 'baz' wp_posts --include-columns=post_title --callback='test_callback' --require=callback-function.php`
+    Then STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      BAZ bar
       """

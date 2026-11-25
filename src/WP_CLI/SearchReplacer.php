@@ -128,10 +128,9 @@ class SearchReplacer {
 	 * Ignores any serialized objects unless $recurse_objects is set to true.
 	 *
 	 * @param array|string $data            The data to operate on.
-	 * @param array        $opts            Additional options for the replacement passed through to the callback
-	 *  An array like: ['table' => $table, 'col' => $col, 'key' => $primary_keys]
 	 * @param bool         $serialised      Does the value of $data need to be unserialized?
-	 * @param array        $opts            Options for the callback.
+	 * @param array        $opts            Additional options passed through to the callback,
+	 *                                      like ['table' => $table, 'col' => $col, 'key' => $primary_key_values].
 	 *
 	 * @return array|string The original array with all elements replaced as needed.
 	 */
@@ -248,7 +247,8 @@ class SearchReplacer {
 					$search_regex .= $this->regex_flags;
 
 					if ( $this->callback ) {
-						$result = \call_user_func( $this->callback, $data, $this->to, $search_regex, $opts );
+						// Only call the callback for strings that match, like without --regex.
+						$result = preg_match( $search_regex, $data ) ? \call_user_func( $this->callback, $data, $this->to, $search_regex, $opts ) : $data;
 					} else {
 						$result = preg_replace( $search_regex, $this->to, $data, $this->regex_limit );
 					}
