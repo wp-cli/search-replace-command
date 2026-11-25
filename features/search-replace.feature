@@ -41,6 +41,17 @@ Feature: Do global search/replace
       | Table    | Column       | Replacements | Type |
       | wp_posts | post_content | 0            | SQL  |
 
+    When I run `wp search-replace foo bar --skip-columns=wp_posts.guid`
+    Then STDOUT should not contain:
+      """
+      guid
+      """
+
+    When I run `wp search-replace foo bar --include-columns=wp_posts.post_content`
+    Then STDOUT should be a table containing rows:
+      | Table    | Column       | Replacements | Type |
+      | wp_posts | post_content | 0            | SQL  |
+
   @require-mysql
   Scenario: Multisite search/replace
     Given a WP multisite install
@@ -66,6 +77,31 @@ Feature: Do global search/replace
     Then STDOUT should contain:
       """
       wp_awesome
+      """
+
+  @require-mysql
+  Scenario: Skip views during search/replace
+    Given a WP install
+    And I run `wp db query "CREATE VIEW wp_posts_view AS SELECT ID, post_title FROM wp_posts;"`
+
+    When I run `wp search-replace foo bar --all-tables-with-prefix`
+    Then STDOUT should contain:
+      """
+      wp_posts_view
+      """
+    And STDOUT should contain:
+      """
+      skipped (view)
+      """
+
+    When I run `wp search-replace foo bar --all-tables`
+    Then STDOUT should contain:
+      """
+      wp_posts_view
+      """
+    And STDOUT should contain:
+      """
+      skipped (view)
       """
 
   @require-mysql
@@ -185,6 +221,7 @@ Feature: Do global search/replace
       1 rows affected
       """
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
   Scenario: Regex search/replace
     Given a WP install
     When I run `wp search-replace '(Hello)\s(world)' '$2, $1' --regex`
@@ -219,9 +256,10 @@ Feature: Do global search/replace
     And I run `wp eval-file setup-theme-mod.php`
 
     When I run `wp theme mod get header_image_data`
-    Then STDOUT should be a table containing rows:
-      | key               | value                                              |
-      | header_image_data | {"url":"https:\/\/subdomain.example.com\/foo.jpg"} |
+    Then STDOUT should contain:
+      """
+      https://subdomain.example.com/foo.jpg
+      """
 
     When I run `wp search-replace subdomain.example.com example.com --no-recurse-objects`
     Then STDOUT should be a table containing rows:
@@ -234,9 +272,10 @@ Feature: Do global search/replace
       | wp_options | option_value | 1            | PHP  |
 
     When I run `wp theme mod get header_image_data`
-    Then STDOUT should be a table containing rows:
-      | key               | value                                    |
-      | header_image_data | {"url":"https:\/\/example.com\/foo.jpg"} |
+    Then STDOUT should contain:
+      """
+        url	https://example.com/foo.jpg
+      """
 
   @require-mysql
   Scenario: Search and replace handles JSON-encoded URLs in post content
@@ -470,10 +509,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-flags=u`
@@ -485,10 +521,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/`
@@ -500,10 +533,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
     When I try `wp search-replace 'regex error)' '' --regex --regex-delimiter=/ --regex-flags=u`
@@ -515,10 +545,7 @@ Feature: Do global search/replace
       """
       preg_match(): Compilation failed:
       """
-    And STDERR should contain:
-      """
-      at offset 11
-      """
+    And STDERR should match /preg_match\(\): Compilation failed: unmatched (closing parenthesis|parentheses) at offset [0-9]+\.?/
     And the return code should be 1
 
   @require-mysql
@@ -923,6 +950,10 @@ Feature: Do global search/replace
       """
     And STDERR should be empty
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
+  # SQLite: regex backreference replacement produces different results due to
+  # LIKE case-sensitivity differences. Requires further investigation.
+  @skip-sqlite
   Scenario: Logging with regex replace
     Given a WP install
 
@@ -1162,8 +1193,82 @@ Feature: Do global search/replace
       a:1:{i:0;O:10:"CornFlakes":0:{}}
       """
 
-  @require-mysql @less-than-php-8.0
-  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP < 8.0)
+  # `CaseInsensitiveDictionary` is from Requests 2.0, which was added in 6.2.
+  @require-wp-6.2
+  Scenario: Search-replace updates iterable dictionary objects without dynamic property deprecations
+
+    Given a WP install
+    And a search-replace-case-insensitive-dictionary.php file:
+      """
+      <?php
+      WP_CLI::add_hook(
+          'search_replace_unserialize_options',
+          function () {
+              return [ 'allowed_classes' => [ 'stdClass', 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ];
+          }
+      );
+      $replacer = new \WP_CLI\SearchReplacer( 'old.example.com', 'new.example.com', true );
+      echo $replacer->run(
+          serialize(
+              new \WpOrg\Requests\Utility\CaseInsensitiveDictionary(
+                  [
+                      'date' => 'https://old.example.com/feed',
+                  ]
+              )
+          )
+      );
+      """
+
+    When I run `wp eval-file search-replace-case-insensitive-dictionary.php`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      https://new.example.com/feed
+      """
+    And STDOUT should not contain:
+      """
+      https://old.example.com/feed
+      """
+
+  @require-mysql
+  Scenario: The search_replace_unserialize_options hook allows overriding allowed_classes for unserialize
+
+    Given a WP install
+    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:7:\"MyClass\":1:{s:3:\"foo\";s:13:\"cereal_marker\";}')"`
+    And a hook.php file:
+      """
+      <?php
+      class MyClass {
+          public $foo = '';
+      }
+      WP_CLI::add_hook(
+          'search_replace_unserialize_options',
+          function () {
+              return [ 'allowed_classes' => [ 'stdClass', 'MyClass' ] ];
+          }
+      );
+      """
+
+    When I try `wp search-replace cereal_marker cereal_replaced`
+    Then STDERR should contain:
+      """
+      Warning: Skipping an uninitialized class "MyClass", replacements might not be complete.
+      """
+    And STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+
+    When I run `wp --require=hook.php search-replace cereal_marker cereal_replaced`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+
+  @require-mysql
+  Scenario: Warn and ignore type-hinted objects that have some error in deserialization
+
     Given a WP install
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
     And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
@@ -1171,120 +1276,14 @@ Feature: Do global search/replace
     When I try `wp search-replace mysqli_result stdClass`
     Then STDERR should contain:
       """
-      Warning: WP_CLI\SearchReplacer::run_recursively(): Couldn't fetch mysqli_result
+      Warning: Skipping an uninitialized class "mysqli_result", replacements might not be complete.
       """
     And STDOUT should contain:
       """
       Success: Made 1 replacement.
       """
 
-    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'" --skip-column-names`
-    Then STDOUT should contain:
-      """
-      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
-      """
-    And save STDOUT as {SERIALIZED_RESULT}
-    And a test_php.php file:
-      """
-      <?php print_r(unserialize('{SERIALIZED_RESULT}'));
-      """
-
-    When I try `wp eval-file test_php.php`
-    Then STDOUT should contain:
-      """
-      stdClass Object
-      """
-    And STDOUT should contain:
-      """
-      [current_field] => 1
-      """
-    And STDOUT should contain:
-      """
-      [field_count] => 2
-      """
-
-  @require-mysql @require-php-8.0 @less-than-php-8.1
-  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP 8.0)
-    Given a WP install
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
-
-    When I try `wp search-replace mysqli_result stdClass`
-    Then STDERR should contain:
-      """
-      Warning: Skipping an inconvertible serialized object of type "mysqli_result", replacements might not be complete. Reason: mysqli_result object is already closed.
-      """
-    And STDOUT should contain:
-      """
-      Success: Made 1 replacement.
-      """
-
-    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'" --skip-column-names`
-    Then STDOUT should contain:
-      """
-      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
-      """
-    And save STDOUT as {SERIALIZED_RESULT}
-    And a test_php.php file:
-      """
-      <?php print_r(unserialize('{SERIALIZED_RESULT}'));
-      """
-
-    When I try `wp eval-file test_php.php`
-    Then STDOUT should contain:
-      """
-      stdClass Object
-      """
-    And STDOUT should contain:
-      """
-      [current_field] => 1
-      """
-    And STDOUT should contain:
-      """
-      [field_count] => 2
-      """
-
-  @require-mysql @require-php-8.1
-  Scenario: Warn and ignore type-hinted objects that have some error in deserialization (PHP 8.1+)
-    Given a WP install
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation','O:13:\"mysqli_result\":5:{s:13:\"current_field\";N;s:11:\"field_count\";N;s:7:\"lengths\";N;s:8:\"num_rows\";N;s:4:\"type\";N;}')"`
-    And I run `wp db query "INSERT INTO wp_options (option_name,option_value) VALUES ('cereal_isation_2','O:8:\"mysqli_result\":5:{s:13:\"current_field\";i:1;s:11:\"field_count\";i:2;s:7:\"lengths\";a:1:{i:0;s:4:\"blah\";}s:8:\"num_rows\";i:1;s:4:\"type\";i:2;}')"`
-
-    When I try `wp search-replace mysqli_result stdClass`
-    Then STDERR should contain:
-      """
-      Warning: Skipping an inconvertible serialized object: "O:13:"mysqli_result":5:{s:13:"current_field";N;s:11:"field_count";N;s:7:"lengths";N;s:8:"num_rows";N;s:4:"type";N;}", replacements might not be complete. Reason: Cannot assign null to property mysqli_result::$current_field of type int.
-      """
-    And STDOUT should contain:
-      """
-      Success: Made 1 replacement.
-      """
-
-    When I run `wp db query "SELECT option_value from wp_options where option_name='cereal_isation_2'" --skip-column-names`
-    Then STDOUT should contain:
-      """
-      O:8:"stdClass":5:{s:13:"current_field";i:1;s:11:"field_count";i:2;s:7:"lengths";a:1:{i:0;s:4:"blah";}s:8:"num_rows";i:1;s:4:"type";i:2;}
-      """
-    And save STDOUT as {SERIALIZED_RESULT}
-    And a test_php.php file:
-      """
-      <?php print_r(unserialize('{SERIALIZED_RESULT}'));
-      """
-
-    When I try `wp eval-file test_php.php`
-    Then STDOUT should contain:
-      """
-      stdClass Object
-      """
-    And STDOUT should contain:
-      """
-      [current_field] => 1
-      """
-    And STDOUT should contain:
-      """
-      [field_count] => 2
-      """
-
+  # See https://github.com/wp-cli/search-replace-command/issues/190
   Scenario: Regex search/replace with `--regex-limit=1` option
     Given a WP install
     And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
@@ -1295,6 +1294,7 @@ Feature: Do global search/replace
       I have a pen, I have an orange. Pen, pine-apple, apple-pen.
       """
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
   Scenario: Regex search/replace with `--regex-limit=2` option
     Given a WP install
     And I run `wp post create --post_content="I have a pen, I have an apple. Pen, pine-apple, apple-pen."`
@@ -1305,6 +1305,7 @@ Feature: Do global search/replace
       I have a pen, I have an orange. Pen, pine-orange, apple-pen.
       """
 
+  # See https://github.com/wp-cli/search-replace-command/issues/190
   Scenario: Regex search/replace with incorrect or default `--regex-limit`
     Given a WP install
     When I try `wp search-replace '(Hello)\s(world)' '$2, $1' --regex --regex-limit=asdf`
@@ -1572,4 +1573,68 @@ Feature: Do global search/replace
     And STDOUT should not contain:
       """
       --old-content
+      """
+
+
+  @require-mysql
+  Scenario: Warn when updating a table fails due to a database error
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_readonly_test ( id int(11) unsigned NOT NULL AUTO_INCREMENT, data VARCHAR(191), PRIMARY KEY (id), UNIQUE KEY data (data) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"`
+    And I run `wp db query "INSERT INTO wp_readonly_test (data) VALUES ('old-value'), ('new-value');"`
+
+    When I try `wp search-replace old-value new-value --all-tables-with-prefix`
+    Then STDERR should contain:
+      """
+      Error updating column 'data' in table 'wp_readonly_test'
+      """
+    And STDERR should contain:
+      """
+      Duplicate entry
+      """
+
+  @require-mysql
+  Scenario: Report types and counts are based on serialized data in the column
+    Given a WP install
+    And I run `wp option add sr_serialized_match '{"url":"https://match.example/x"}' --format=json`
+    And I run `wp option add sr_plain_match 'see https://match.example/y'`
+    And I run `wp post create --post_title='Has match.example in it' --post_content='Plain match.example content' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    # option_value holds serialized data (the option above), so it is handled in PHP.
+    # post_title has no serialized data, so it is handled in SQL. post_excerpt has no matches.
+    When I run `wp search-replace match.example other.example --dry-run --include-columns=option_value,post_title,post_excerpt`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 2            | PHP  |
+      | wp_posts   | post_title   | 1            | SQL  |
+      | wp_posts   | post_excerpt | 0            | SQL  |
+
+    # A column with serialized data is reported as PHP even when none of it matches.
+    When I run `wp search-replace no-such-string other.example --dry-run --include-columns=option_value`
+    Then STDOUT should be a table containing rows:
+      | Table      | Column       | Replacements | Type |
+      | wp_options | option_value | 0            | PHP  |
+
+    When I run `wp search-replace match.example other.example`
+    Then STDOUT should contain:
+      """
+      Success: Made 4 replacements.
+      """
+
+    When I run `wp option get sr_serialized_match --format=json`
+    Then STDOUT should be:
+      """
+      {"url":"https:\/\/other.example\/x"}
+      """
+
+    When I run `wp option get sr_plain_match`
+    Then STDOUT should be:
+      """
+      see https://other.example/y
+      """
+
+    When I run `wp post get {POST_ID} --field=post_content`
+    Then STDOUT should be:
+      """
+      Plain other.example content
       """

@@ -3,7 +3,7 @@ wp-cli/search-replace-command
 
 Searches/replaces strings in the database.
 
-[![Testing](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml/badge.svg)](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml)
+[![Testing](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml/badge.svg)](https://github.com/wp-cli/search-replace-command/actions/workflows/testing.yml) [![Code Coverage](https://codecov.io/gh/wp-cli/search-replace-command/branch/main/graph/badge.svg)](https://codecov.io/gh/wp-cli/search-replace-command/tree/main)
 
 Quick links: [Using](#using) | [Installing](#installing) | [Contributing](#contributing) | [Support](#support)
 
@@ -23,6 +23,15 @@ multisite, this will just be the tables for the current site unless
 Search/replace intelligently handles PHP serialized data, and does not
 change primary key values.
 
+The JSON-encoded form of the search string is replaced as well, so a
+search for `https://example.com` also matches `https:\/\/example.com`
+in JSON stored in the database. This does not apply with `--regex`,
+where the pattern itself has to account for escaped slashes.
+
+Tables without a primary key are skipped. To check whether a table has a
+primary key, run `wp db query 'DESCRIBE <table>'` and look for 'PRI' in
+the Key column.
+
 **OPTIONS**
 
 	[<old>]
@@ -41,7 +50,8 @@ change primary key values.
 
 	[--new=<value>]
 		An alternative way to specify the replacement string. Use this when the
-		replacement string starts with '--' (e.g., --new='--other-text').
+		replacement string starts with '--' (e.g., --new='--other-text') or is
+		empty.
 
 	[--dry-run]
 		Run the entire search/replace operation and show report, but don't save
@@ -75,11 +85,13 @@ change primary key values.
 
 	[--skip-columns=<columns>]
 		Do not perform the replacement on specific columns. Use commas to
-		specify multiple columns.
+		specify multiple columns. Table-qualified column names ("table.column")
+		are supported to apply the skip to a specific table only.
 
 	[--include-columns=<columns>]
 		Perform the replacement on specific columns. Use commas to
-		specify multiple columns.
+		specify multiple columns. Table-qualified column names ("table.column")
+		are supported to apply the inclusion to a specific table only.
 
 	[--precise]
 		Force the use of PHP (instead of SQL) for all columns. By default, the command
@@ -152,6 +164,9 @@ change primary key values.
     # Search/replace string containing hyphens
     $ wp search-replace --old='--old-string' --new='new-string'
 
+    # Remove a string by replacing it with an empty value
+    $ wp search-replace --old='remove-me' --new=''
+
     # Use precise mode for complex serialized data
     $ wp search-replace 'oldurl.com' 'newurl.com' --precise
 
@@ -193,9 +208,13 @@ Want to contribute a new feature? Please first [open a new issue](https://github
 
 Once you've decided to commit the time to seeing your pull request through, [please follow our guidelines for creating a pull request](https://make.wordpress.org/cli/handbook/pull-requests/) to make sure it's a pleasant experience. See "[Setting up](https://make.wordpress.org/cli/handbook/pull-requests/#setting-up)" for details specific to working on this package locally.
 
+### License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
 ## Support
 
-GitHub issues aren't for general support questions, but there are other venues you can try: https://wp-cli.org/#support
+GitHub issues aren't for general support questions. For support resources and next steps, see the WP-CLI Support page: https://make.wordpress.org/cli/handbook/support/
 
 
 *This README.md is generated dynamically from the project's codebase using `wp scaffold package-readme` ([doc](https://github.com/wp-cli/scaffold-package-command#wp-scaffold-package-readme)). To suggest changes, please submit a pull request against the corresponding part of the codebase.*
