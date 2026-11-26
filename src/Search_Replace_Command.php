@@ -1016,12 +1016,20 @@ class Search_Replace_Command extends WP_CLI_Command {
 					// In dry-run mode, count replacements once a change has been detected.
 					++$count;
 				} else {
-					$update_where = array();
+					// Pass the formats explicitly, as wpdb would otherwise pick them from $wpdb->field_types by
+					// column name only, e.g. %d for any `ID` column: a string key '1' would then also match '01'.
+					$update_where  = array();
+					$where_formats = array();
 					foreach ( (array) $keys as $k => $v ) {
 						$update_where[ $k ] = $v;
+						if ( in_array( $k, $this->string_primary_keys[ $table ], true ) ) {
+							$where_formats[] = '%s';
+						} else {
+							$where_formats[] = isset( $wpdb->field_types[ $k ] ) ? $wpdb->field_types[ $k ] : '%s';
+						}
 					}
 
-					$result = $wpdb->update( $table, array( $col => $value ), $update_where );
+					$result = $wpdb->update( $table, array( $col => $value ), $update_where, array( '%s' ), $where_formats );
 					if ( false === $result ) {
 						if ( empty( $this->update_error_columns[ $table ][ $col ] ) ) {
 							$this->update_error_columns[ $table ][ $col ] = true;

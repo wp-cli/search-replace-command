@@ -574,6 +574,30 @@ Feature: Test search-replace --where option
       | --precise |
 
   @require-mysql
+  Scenario Outline: Where with --precise updates only the selected row of a string primary key named like a WordPress integer column
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_idkeyed ( ID VARCHAR(20) NOT NULL, title TEXT, body TEXT, PRIMARY KEY (ID) )"`
+    And I run `wp db query "INSERT INTO wp_idkeyed VALUES ('01', 'zero one foo', 'zero one foo'), ('1', 'one foo', 'one foo')"`
+
+    When I run `wp search-replace foo bar --all-tables --where="<where>" --precise --format=count`
+    Then STDOUT should be:
+      """
+      <count>
+      """
+
+    When I run `wp db query "SELECT CONCAT_WS('|', ID, title, body) FROM wp_idkeyed ORDER BY ID" --skip-column-names`
+    Then STDOUT should be:
+      """
+      01|zero one foo|zero one foo
+      1|<title>|one bar
+      """
+
+    Examples:
+      | where                    | count | title   |
+      | wp_idkeyed:body:ID = '1' | 1     | one foo |
+      | wp_idkeyed::ID = '1'     | 2     | one bar |
+
+  @require-mysql
   Scenario Outline: A failed row selection stops before any column is replaced
     Given a WP install
     And I run `wp post create --post_title='Title foo' --post_content='Content foo' --porcelain`
