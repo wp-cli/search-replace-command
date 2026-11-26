@@ -239,3 +239,32 @@ Feature: Test search-replace --callback option
       """
       FOO bar
       """
+
+  @require-mysql
+  Scenario: Callback is applied to an export
+    Given a WP install
+    And a callback-function.php file:
+      """
+      <?php
+      function test_callback( $data, $replacement ) {
+        return str_replace( 'foo', strtoupper( $replacement ), $data );
+      }
+      """
+    And I run `wp post create --post_title='foo bar' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I run `wp search-replace 'foo' 'baz' wp_posts --include-columns=post_title --callback='test_callback' --require=callback-function.php --export`
+    Then STDOUT should contain:
+      """
+      'BAZ bar'
+      """
+    And STDOUT should not contain:
+      """
+      'baz bar'
+      """
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      foo bar
+      """
