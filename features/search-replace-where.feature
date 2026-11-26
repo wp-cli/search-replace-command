@@ -721,7 +721,9 @@ Feature: Test search-replace --where option
       Success: Made 1 replacement.
       """
 
-    When I run `wp post get {POST_ID} --field=title`
+    # The title was read above, so a persistent object cache still holds the old one.
+    When I run `wp cache flush`
+    And I run `wp post get {POST_ID} --field=title`
     Then STDOUT should be:
       """
       Title bar
