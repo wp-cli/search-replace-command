@@ -1875,9 +1875,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 		// prefixes as the table's own, as a TEXT or BLOB column can only be indexed by a prefix.
 		$key_prefixes = array();
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-		foreach ( (array) $wpdb->get_results( "SHOW INDEX FROM $table_sql WHERE Key_name = 'PRIMARY'" ) as $index_col ) {
-			if ( isset( $index_col->Column_name, $index_col->Sub_part ) && (int) $index_col->Sub_part > 0 ) {
-				$key_prefixes[ $index_col->Column_name ] = (int) $index_col->Sub_part;
+		foreach ( (array) $wpdb->get_results( "SHOW INDEX FROM $table_sql WHERE Key_name = 'PRIMARY'", ARRAY_A ) as $index_col ) {
+			if ( isset( $index_col['Column_name'], $index_col['Sub_part'] ) && (int) $index_col['Sub_part'] > 0 ) {
+				$key_prefixes[ $index_col['Column_name'] ] = (int) $index_col['Sub_part'];
 			}
 		}
 		$key_index_sql = implode(
