@@ -356,6 +356,55 @@ Feature: Test search-replace --where option
       """
 
   @require-mysql
+  Scenario: Where conditions with semicolons inside quoted literals
+    Given a WP install
+    And I run `wp option update blogname 'Site foo'`
+    And I run `wp post create --post_title='a;b foo' --porcelain`
+    And save STDOUT as {POST1_ID}
+    And I run `wp post create --post_title="it's;c foo" --porcelain`
+    And save STDOUT as {POST2_ID}
+    And I run `wp post create --post_title="it's;d foo" --porcelain`
+    And save STDOUT as {POST3_ID}
+    And I run `wp post create --post_title='other foo' --porcelain`
+    And save STDOUT as {POST4_ID}
+
+    When I run `wp search-replace foo bar --where="posts:post_title:post_title IN ('a;b foo', 'it\'s;c foo', 'it''s;d foo');options:option_value:option_name = 'blogname'"`
+    Then STDOUT should contain:
+      """
+      Success: Made 4 replacements.
+      """
+
+    When I run `wp post get {POST1_ID} --field=title`
+    Then STDOUT should be:
+      """
+      a;b bar
+      """
+
+    When I run `wp post get {POST2_ID} --field=title`
+    Then STDOUT should be:
+      """
+      it's;c bar
+      """
+
+    When I run `wp post get {POST3_ID} --field=title`
+    Then STDOUT should be:
+      """
+      it's;d bar
+      """
+
+    When I run `wp post get {POST4_ID} --field=title`
+    Then STDOUT should be:
+      """
+      other foo
+      """
+
+    When I run `wp option get blogname`
+    Then STDOUT should be:
+      """
+      Site bar
+      """
+
+  @require-mysql
   Scenario: Malformed where specifications are rejected before any table is processed
     Given a WP install
     And I run `wp post create --post_title='Post foo' --porcelain`
@@ -379,6 +428,13 @@ Feature: Test search-replace --where option
     Then STDERR should be:
       """
       Error: Invalid --where specification ':post_title:1=1': no table given.
+      """
+    And the return code should be 1
+
+    When I try `wp search-replace foo bar --where="posts::post_title = 'Post foo"`
+    Then STDERR should be:
+      """
+      Error: Invalid --where specification 'posts::post_title = 'Post foo': unterminated ' quote.
       """
     And the return code should be 1
 

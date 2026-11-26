@@ -1581,9 +1581,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 */
 	private function develop_where_specs( $str_specs ) {
 		global $wpdb;
-		$specs   = array_filter( explode( ';', (string) $str_specs ) );
 		$clauses = [];
-		foreach ( $specs as $spec ) {
+		foreach ( self::split_where_specs( (string) $str_specs ) as $spec ) {
 			$parts = array_map( 'trim', explode( ':', $spec, 3 ) );
 			if ( count( $parts ) < 3 ) {
 				WP_CLI::error( "Invalid --where specification '{$spec}'. Expected format: <table>[,table]:[column,...]:<SQL-condition>." );
@@ -1602,6 +1601,53 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		return $clauses;
+	}
+
+	/**
+	 * Splits the --where option into its specifications, on the semicolons outside quoted SQL literals.
+	 *
+	 * Inside quotes, a backslash escapes the next character, and a doubled quote character
+	 * closes and reopens the literal, so neither ends it.
+	 *
+	 * @param string $str_specs The --where option value.
+	 * @return string[] The non-empty specifications.
+	 */
+	private static function split_where_specs( $str_specs ) {
+		$specs   = [];
+		$current = '';
+		$quote   = null;
+		$length  = strlen( $str_specs );
+		for ( $i = 0; $i < $length; $i++ ) {
+			$char = $str_specs[ $i ];
+			if ( null !== $quote ) {
+				if ( '\\' === $char && $i + 1 < $length ) {
+					$current .= $char . $str_specs[ ++$i ];
+					continue;
+				}
+				if ( $char === $quote ) {
+					$quote = null;
+				}
+			} elseif ( "'" === $char || '"' === $char || '`' === $char ) {
+				$quote = $char;
+			} elseif ( ';' === $char ) {
+				$specs[] = $current;
+				$current = '';
+				continue;
+			}
+			$current .= $char;
+		}
+
+		if ( null !== $quote ) {
+			WP_CLI::error( "Invalid --where specification '{$current}': unterminated {$quote} quote." );
+		}
+		$specs[] = $current;
+
+		return array_values(
+			array_filter(
+				array_map( 'trim', $specs ),
+				'strlen'
+			)
+		);
 	}
 
 	/**
