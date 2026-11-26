@@ -68,6 +68,14 @@ class SearchReplacer {
 	private $log_data = [];
 
 	/**
+	 * Whether renaming the keys or property names of an object failed
+	 * during the current run().
+	 *
+	 * @var bool
+	 */
+	private $key_failure = false;
+
+	/**
 	 * @var int
 	 */
 	private $max_recursion;
@@ -125,13 +133,32 @@ class SearchReplacer {
 	 * unserialising any subordinate arrays and performing the replace on those too.
 	 * Ignores any serialized objects unless $recurse_objects is set to true.
 	 *
+	 * With key recursion enabled, the replacement is all or nothing: if
+	 * renaming the keys or property names of any object in $data fails, the
+	 * original $data is returned unchanged, and no log entries are kept for it.
+	 *
 	 * @param array|string $data            The data to operate on.
 	 * @param bool         $serialised      Does the value of $data need to be unserialized?
 	 *
 	 * @return array       The original array with all elements replaced as needed.
 	 */
 	public function run( $data, $serialised = false ) {
-		return $this->run_recursively( $data, $serialised );
+		if ( ! $this->recurse_keys ) {
+			return $this->run_recursively( $data, $serialised );
+		}
+
+		$log_position      = count( $this->log_data );
+		$this->key_failure = false;
+		try {
+			return $this->run_recursively( $data, $serialised );
+		} catch ( Exception $exception ) {
+			if ( ! $this->key_failure ) {
+				throw $exception;
+			}
+			$this->key_failure = false;
+			array_splice( $this->log_data, $log_position );
+			return $data;
+		}
 	}
 
 	/**
@@ -241,8 +268,12 @@ class SearchReplacer {
 			if ( $serialised ) {
 				return serialize( $data );
 			}
-		} catch ( Exception $exception ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- Intentionally empty.
-
+		} catch ( Exception $exception ) {
+			// A failed key or property name replacement discards the whole
+			// value, so pass it on up to run().
+			if ( $this->key_failure ) {
+				throw $exception;
+			}
 		}
 
 		return $data;
@@ -400,9 +431,9 @@ class SearchReplacer {
 	 *
 	 * Readonly properties (PHP 8.1+) are never renamed, and no property is
 	 * renamed onto a readonly property. Properties that share a PHP reference
-	 * keep sharing it after a rename. If modifying the object fails part way,
-	 * it is restored to its original property names and values before the
-	 * error is passed on.
+	 * keep sharing it after a rename. If modifying the object fails, the
+	 * object is not restored: the whole value that run() is processing is
+	 * left unchanged instead (see fail_key_replacement()).
 	 *
 	 * ArrayAccess implementations may normalize offsets on write. Offsets are
 	 * only renamed for implementations whose offset semantics are known
@@ -479,69 +510,56 @@ class SearchReplacer {
 			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
 
-		// Take a reference to each property that is renamed, so that it keeps
-		// any reference it shares with other properties. Properties that keep
-		// their name are read and assigned normally, so that, for example,
-		// PHP 8.4 `set` hooks still apply to them.
-		$refs      = array();
-		$originals = array();
-		foreach ( $renames as $key => $new_key ) {
-			if ( ! $is_array_access && $new_key !== $key ) {
-				$refs[ $key ]      = &$data->$key;
-				$originals[ $key ] = $refs[ $key ];
-			} else {
-				$originals[ $key ] = $this->read_property( $data, $is_array_access, $key );
-			}
-		}
-
-		// Stage all processed values before touching the object.
-		$log_position = count( $this->log_data );
-		$values       = array();
-		foreach ( $renames as $key => $new_key ) {
-			$values[ $key ] = $this->run_recursively( $originals[ $key ], false, $recursion_level + 1, $visited_data );
-		}
-
-		$removed  = array();
-		$written  = array();
-		$assigned = array();
 		try {
+			// Take a reference to each property that is renamed, so that it keeps
+			// any reference it shares with other properties. Properties that keep
+			// their name are read and assigned normally, so that, for example,
+			// PHP 8.4 `set` hooks still apply to them.
+			$refs      = array();
+			$originals = array();
+			foreach ( $renames as $key => $new_key ) {
+				if ( ! $is_array_access && $new_key !== $key ) {
+					$refs[ $key ]      = &$data->$key;
+					$originals[ $key ] = $refs[ $key ];
+				} else {
+					$originals[ $key ] = $this->read_property( $data, $is_array_access, $key );
+				}
+			}
+
+			// Stage all processed values before touching the object.
+			$log_position = count( $this->log_data );
+			$values       = array();
+			foreach ( $renames as $key => $new_key ) {
+				$values[ $key ] = $this->run_recursively( $originals[ $key ], false, $recursion_level + 1, $visited_data );
+				if ( isset( $readonly[ $key ] ) && $values[ $key ] !== $originals[ $key ] ) {
+					throw new \Error( sprintf( 'Cannot modify readonly property %s::$%s', get_class( $data ), $key ) ); // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
+				}
+			}
+
 			foreach ( $renames as $key => $new_key ) {
 				if ( $new_key !== $key ) {
 					$this->remove_property( $data, $is_array_access, $key );
-					$removed[ $key ] = true;
 				}
 			}
 			foreach ( $renames as $key => $new_key ) {
 				if ( isset( $readonly[ $key ] ) ) {
-					if ( $values[ $key ] !== $originals[ $key ] ) {
-						throw new \Error( sprintf( 'Cannot modify readonly property %s::$%s', get_class( $data ), $key ) ); // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
-					}
 					continue;
 				}
 				if ( $is_array_access ) {
 					$this->write_property( $data, true, $new_key, $values[ $key ] );
-					if ( $new_key !== $key ) {
-						$written[] = $new_key;
-					}
-					continue;
-				}
-				if ( $new_key !== $key ) {
+				} elseif ( $new_key !== $key ) {
 					$data->$new_key = &$refs[ $key ];
-					$written[]      = $new_key;
 					$refs[ $key ]   = $values[ $key ];
 				} else {
-					$data->$key       = $values[ $key ];
-					$assigned[ $key ] = true;
+					$data->$key = $values[ $key ];
 				}
 			}
 		} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
-			$this->restore_object( $data, $is_array_access, $renames, $originals, $refs, $removed, $written, $assigned );
-			throw $exception;
+			$this->fail_key_replacement( $data, $exception );
 		} catch ( Exception $exception ) {
 			// ArrayAccess implementations may throw any exception, for example
-			// from offsetUnset() after an earlier offset was already removed.
-			$this->restore_object( $data, $is_array_access, $renames, $originals, $refs, $removed, $written, $assigned );
-			throw $exception;
+			// from offsetUnset().
+			$this->fail_key_replacement( $data, $exception );
 		}
 
 		$this->commit_key_logs( $renames, $key_logs, $log_position );
@@ -549,54 +567,31 @@ class SearchReplacer {
 	}
 
 	/**
-	 * Restore an object to its original property names and values after a failed modification.
+	 * Abandon the current run() after renaming the keys or property names of an object failed.
 	 *
-	 * Removed properties and offsets are added back at the end, so the
-	 * properties and offsets that followed the first removed one are moved
-	 * to the end as well, to restore the original order. Declared properties
-	 * keep their position anyway and are not moved.
+	 * The object may be left partly modified, so the whole value that is
+	 * being processed is discarded: run() returns it unchanged instead.
 	 *
-	 * @param object                        $data            The object to restore.
-	 * @param bool                          $is_array_access Whether the object implements ArrayAccess.
-	 * @param array<int|string, int|string> $renames         Map of original key to destination key.
-	 * @param array<int|string, mixed>      $originals       Original values, by original key.
-	 * @param array<int|string, mixed>      $refs            References to the original properties, by original key.
-	 * @param array<int|string, bool>       $removed         Original keys that were removed.
-	 * @param array<int|string>             $written         Destination keys that were written.
-	 * @param array<int|string, bool>       $assigned        Original keys that kept their name and were assigned.
-	 * @return void
+	 * @param object               $data      The object that failed to be modified.
+	 * @param \Throwable|Exception $exception The error or exception thrown.
+	 * @return never
+	 *
+	 * @throws Exception Always, to unwind to run().
 	 */
-	private function restore_object( $data, $is_array_access, $renames, $originals, &$refs, $removed, $written, $assigned ) {
-		foreach ( $written as $name ) {
-			$this->remove_property( $data, $is_array_access, $name );
+	private function fail_key_replacement( $data, $exception ) {
+		if ( $this->key_failure ) {
+			// Already reported by a nested object.
+			throw $exception;
 		}
-		$class = get_class( $data );
-		$move  = false;
-		foreach ( $renames as $key => $new_key ) {
-			if ( isset( $removed[ $key ] ) ) {
-				$move = true;
-			}
-			if ( $is_array_access ) {
-				if ( $move && ! isset( $removed[ $key ] ) ) {
-					$this->remove_property( $data, true, $key );
-				}
-				$this->write_property( $data, true, $key, $originals[ $key ] );
-			} elseif ( isset( $removed[ $key ] ) ) {
-				$data->$key   = &$refs[ $key ];
-				$refs[ $key ] = $originals[ $key ];
-			} elseif ( $move && ! property_exists( $class, (string) $key ) ) {
-				// Move a dynamic property to the end, keeping any reference it shares.
-				$ref = &$data->$key;
-				unset( $data->$key );
-				$data->$key = &$ref;
-				if ( isset( $assigned[ $key ] ) ) {
-					$ref = $originals[ $key ];
-				}
-				unset( $ref );
-			} elseif ( isset( $assigned[ $key ] ) ) {
-				$data->$key = $originals[ $key ];
-			}
-		}
+		$this->key_failure = true;
+		\WP_CLI::warning(
+			sprintf(
+				'Skipping an inconvertible serialized object of type "%s": the whole value was left unchanged, so replacements might not be complete. Reason: %s.',
+				get_class( $data ),
+				$exception->getMessage()
+			)
+		);
+		throw new Exception( $exception->getMessage(), (int) $exception->getCode(), $exception );
 	}
 
 	/**
