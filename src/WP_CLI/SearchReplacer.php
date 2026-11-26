@@ -135,7 +135,10 @@ class SearchReplacer {
 	 *
 	 * With key recursion enabled, the replacement is all or nothing: if
 	 * renaming the keys or property names of any object in $data fails, the
-	 * original $data is returned unchanged, and no log entries are kept for it.
+	 * original $data is returned and no log entries are kept for it. For a
+	 * serialized string (which is all the command passes) that means the value
+	 * is left unchanged. For an array holding live objects, those objects may
+	 * still have been partly modified in place.
 	 *
 	 * @param array|string $data            The data to operate on.
 	 * @param bool         $serialised      Does the value of $data need to be unserialized?
