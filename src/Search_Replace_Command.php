@@ -151,6 +151,14 @@ class Search_Replace_Command extends WP_CLI_Command {
 	private $callback;
 
 	/**
+	 * The primary key columns of each table whose values must be compared as strings,
+	 * i.e. those not of an integer type.
+	 *
+	 * @var array<string, string[]>
+	 */
+	private $string_primary_keys = array();
+
+	/**
 	 * Searches/replaces strings in the database.
 	 *
 	 * Searches through all rows in a selection of tables and replaces
@@ -239,6 +247,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * <row-col-spec> format: <table>[,table]:[column,...]:quoted-SQL-condition
 	 * The conditions select the rows once per table, before any column is replaced, so a
 	 * replacement in a column that a condition refers to does not change the rows of the other columns.
+	 * To replace several columns of a table, the primary keys of the selected rows are held in a
+	 * temporary table, which needs the CREATE TEMPORARY TABLES privilege (and MySQL or MariaDB:
+	 * on SQLite, replace one column per run). The primary key columns of these tables are not replaced.
 	 * Cannot be combined with --export.
 	 *
 	 * [--revisions]
@@ -609,7 +620,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 				continue;
 			}
 
-			list( $primary_keys, $columns, $all_columns ) = self::get_columns( $table );
+			list( $primary_keys, $columns, $all_columns, $string_keys ) = self::get_columns( $table );
+
+			$this->string_primary_keys[ $table ] = $string_keys;
 
 			// since we'll be updating one row at a time,
 			// we need a primary key to identify the row
@@ -630,7 +643,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$columns = array_values(
 				array_filter(
 					$columns,
-					function ( $col ) use ( $table ) {
+					function ( $col ) use ( $table, $primary_keys ) {
+						// With --where, the rows are identified by their primary keys, so never replace those.
+						if ( ! empty( $this->where[ $table ] ) && in_array( $col, $primary_keys, true ) ) {
+							return false;
+						}
 						return $this->is_column_searched( $table, $col );
 					}
 				)
@@ -646,22 +663,12 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			$stats_outdated = false;
 
-			$key_chunks = $this->get_where_key_chunks( $table, $primary_keys, $columns, $old );
+			list( $key_clauses, $key_tables ) = $this->create_where_key_tables( $table, $primary_keys, $columns );
 
 			foreach ( $columns as $i => $col ) {
 
-				$clauses = $this->get_clauses( $table, $col );
-
-				// With the rows selected up front, handle the column one chunk of those rows at a time.
-				$clause_sets = array( $clauses );
-				if ( isset( $key_chunks[ $col ] ) ) {
-					$clause_sets = array_map(
-						static function ( $key_chunk ) {
-							return array( $key_chunk );
-						},
-						$key_chunks[ $col ]
-					);
-				}
+				// With the rows selected up front, restrict the column to those rows only.
+				$clauses = isset( $key_clauses[ $col ] ) ? array( $key_clauses[ $col ] ) : $this->get_clauses( $table, $col );
 
 				if ( $this->verbose && 'count' !== $this->format ) {
 					$this->start_time = microtime( true );
@@ -692,41 +699,28 @@ class Search_Replace_Command extends WP_CLI_Command {
 						// SQLite does not support REGEXP by default, fall back to PHP processing.
 						$serial_row = true;
 					} else {
-						$serial_row = null;
-						foreach ( $clause_sets as $set_clauses ) {
-							$where = $set_clauses ? ' AND ' . implode( ' AND ', $set_clauses ) : '';
-							// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-							$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' $where LIMIT 1" );
+						$where = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
+						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+						$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' $where LIMIT 1" );
 
-							// When the regex triggers an error, we should fall back to PHP
-							if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
-								$serial_row = true;
-							}
-							if ( null !== $serial_row ) {
-								break;
-							}
+						// When the regex triggers an error, we should fall back to PHP
+						if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
+							$serial_row = true;
 						}
 					}
 				}
 
-				$count = 0;
 				if ( $php_only || $this->regex || null !== $serial_row ) {
 					$type = 'PHP';
 					// Nothing to replace in a column without matches.
-					if ( null === $stats || 0 !== $stats['matches'] ) {
-						foreach ( $clause_sets as $set_clauses ) {
-							$count += $this->php_handle_col( $col, $primary_keys, $table, $old, $new, $set_clauses );
-						}
-					}
+					$count = null !== $stats && 0 === $stats['matches'] ? 0 : $this->php_handle_col( $col, $primary_keys, $table, $old, $new, $clauses );
 				} else {
 					$type = 'SQL';
 					if ( null !== $stats && ( 0 === $stats['matches'] || ( $this->dry_run && ! $this->log_handle ) ) ) {
 						// The dry run count is the number of matching rows, which is already known.
 						$count = $stats['matches'];
 					} else {
-						foreach ( $clause_sets as $set_clauses ) {
-							$count += $this->sql_handle_col( $col, $primary_keys, $table, $old, $new, $set_clauses );
-						}
+						$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new, $clauses );
 					}
 				}
 
@@ -745,6 +739,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 				$total += $count;
 			}
+
+			self::drop_tables( $key_tables );
 		}
 
 		if ( $this->export_handle && STDOUT !== $this->export_handle ) {
@@ -898,6 +894,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
 				$count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT($col_sql) FROM $table_sql WHERE $col_sql LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' ) . $where );
 			}
+			if ( $wpdb->last_error ) {
+				WP_CLI::error( sprintf( "Error counting the matches of column '%s' in table '%s': %s", $col, $table, $wpdb->last_error ) );
+			}
 		} else {
 			if ( $this->log_handle ) {
 				$this->log_sql_diff( $col, $primary_keys, $table, $old, $new, $clauses );
@@ -972,7 +971,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 					if ( '' !== $where_sql ) {
 						$where_sql .= ' AND ';
 					}
-					$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
+					$where_sql .= self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_key_value( $v, in_array( $k, $this->string_primary_keys[ $table ], true ) );
 				}
 
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
@@ -1042,8 +1041,13 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			$last_row               = end( $rows );
 			$where_key_conditions   = $base_key_condition;
-			$where_key_conditions[] = self::get_next_key_condition( $primary_keys, array_values( (array) $last_row ) );
+			$where_key_conditions[] = self::get_next_key_condition( $primary_keys, array_values( (array) $last_row ), $this->string_primary_keys[ $table ] );
 			$where_key              = 'WHERE ' . implode( ' AND ', $where_key_conditions );
+		}
+
+		// An empty page also ends the loop when its query failed: don't report that as success.
+		if ( $wpdb->last_error ) {
+			WP_CLI::error( sprintf( "Error selecting the rows of column '%s' in table '%s': %s", $col, $table, $wpdb->last_error ) );
 		}
 
 		return $count;
@@ -1120,13 +1124,15 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * Gets the primary keys, text columns, and all columns for a table.
 	 *
 	 * @param string $table The table to get the columns for.
-	 * @return array A tuple containing the primary keys, text columns, and all columns.
+	 * @return array A tuple containing the primary keys, text columns, all columns,
+	 *               and the primary keys that are not of an integer type.
 	 */
 	private static function get_columns( $table ) {
 		global $wpdb;
 
 		$table_sql       = self::esc_sql_ident( $table );
 		$primary_keys    = array();
+		$string_keys     = array();
 		$text_columns    = array();
 		$all_columns     = array();
 		$suppress_errors = $wpdb->suppress_errors();
@@ -1138,6 +1144,9 @@ class Search_Replace_Command extends WP_CLI_Command {
 			foreach ( $results as $col ) {
 				if ( 'PRI' === $col->Key ) {
 					$primary_keys[] = $col->Field;
+					if ( ! preg_match( '/^(tiny|small|medium|big)?int(eger)?\b/i', $col->Type ) ) {
+						$string_keys[] = $col->Field;
+					}
 				}
 				if ( self::is_text_col( $col->Type ) ) {
 					$text_columns[] = $col->Field;
@@ -1146,7 +1155,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 		$wpdb->suppress_errors( $suppress_errors );
-		return array( $primary_keys, $text_columns, $all_columns );
+		return array( $primary_keys, $text_columns, $all_columns, $string_keys );
 	}
 
 	/**
@@ -1315,6 +1324,20 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		return $quote( $values );
+	}
+
+	/**
+	 * Puts a primary key value into SQL, as a string if its column is not of an integer type.
+	 *
+	 * A numeric-looking value of a text key, like '01', must stay a string: compared as a number,
+	 * it would also match other keys, like '1'.
+	 *
+	 * @param string $value     The value.
+	 * @param bool   $is_string Whether the column is not of an integer type.
+	 * @return string The SQL value.
+	 */
+	private static function esc_sql_key_value( $value, $is_string ) {
+		return $is_string ? "'" . esc_sql( $value ) . "'" : self::esc_sql_value( $value );
 	}
 
 	/**
@@ -1772,15 +1795,16 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * @param string[] $primary_keys The primary key columns.
 	 * @param string[] $last_values  The primary key values of the last row, in the same order.
+	 * @param string[] $string_keys  The primary key columns whose values are compared as strings.
 	 * @return string The condition.
 	 */
-	private static function get_next_key_condition( $primary_keys, $last_values ) {
+	private static function get_next_key_condition( $primary_keys, $last_values, $string_keys ) {
 		$next_key_conditions = array();
 		for ( $last_key_index = count( $primary_keys ) - 1; $last_key_index >= 0; $last_key_index-- ) {
 			$next_key_subconditions = array();
 			for ( $i = 0; $i <= $last_key_index; $i++ ) {
 				$operator                 = $i < $last_key_index ? ' = ' : ' > ';
-				$next_key_subconditions[] = self::esc_sql_ident( $primary_keys[ $i ] ) . $operator . self::esc_sql_value( (string) $last_values[ $i ] );
+				$next_key_subconditions[] = self::esc_sql_ident( $primary_keys[ $i ] ) . $operator . self::esc_sql_key_value( (string) $last_values[ $i ], in_array( $primary_keys[ $i ], $string_keys, true ) );
 			}
 			$next_key_conditions[] = '( ' . implode( ' AND ', $next_key_subconditions ) . ' )';
 		}
@@ -1792,22 +1816,30 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 *
 	 * Otherwise, replacing a column that a condition refers to would change the rows that the
 	 * columns after it are replaced in, and the live run would differ from the dry run.
-	 * The rows are returned as conditions on their primary keys, each covering a chunk of rows,
-	 * so that neither the memory nor the queries grow with one huge list of keys.
+	 *
+	 * The primary keys of the matching rows are copied, database-side and with their exact
+	 * column types, into a temporary table per set of conditions, so that neither the memory
+	 * of the command nor the size of its queries grow with the number of matching rows.
+	 * Each column is then restricted to the keys of its temporary table.
+	 *
+	 * Stops with an error, before any column of the table is replaced, if a temporary table
+	 * cannot be created or populated.
 	 *
 	 * @param string   $table        The table name.
 	 * @param string[] $primary_keys The primary key columns.
 	 * @param string[] $columns      The columns to replace in.
-	 * @param string   $old          The search string.
-	 * @return array<string, string[]>|null The key conditions per column with --where conditions,
-	 *                                      or null if a single column is replaced or no --where applies.
+	 * @return array{0: array<string, string>, 1: string[]} The clause restricting each column with
+	 *                                                       --where conditions to the selected rows,
+	 *                                                       and the temporary tables to drop afterwards.
+	 *                                                       Both empty if a single column is replaced
+	 *                                                       or no --where applies.
 	 */
-	private function get_where_key_chunks( $table, $primary_keys, $columns, $old ) {
+	private function create_where_key_tables( $table, $primary_keys, $columns ) {
 		global $wpdb;
 
 		// With a single column, no replacement can affect the rows the conditions select.
 		if ( empty( $this->where[ $table ] ) || count( $columns ) < 2 ) {
-			return null;
+			return array( array(), array() );
 		}
 
 		// Columns with the same conditions share the same rows.
@@ -1815,90 +1847,63 @@ class Search_Replace_Command extends WP_CLI_Command {
 		foreach ( $columns as $col ) {
 			$clauses = $this->get_clauses( $table, $col );
 			if ( $clauses ) {
-				$id                         = implode( ' AND ', $clauses );
-				$groups[ $id ]['clauses']   = $clauses;
-				$groups[ $id ]['columns'][] = $col;
+				$groups[ implode( ' AND ', $clauses ) ][] = $col;
 			}
 		}
 		if ( ! $groups ) {
-			return null;
-		}
-		$groups = array_values( $groups );
-
-		$conditions = array();
-		foreach ( $groups as $group ) {
-			$condition = $group['clauses'];
-			if ( ! $this->regex ) {
-				// Only rows that contain the search string in one of the columns can change.
-				$condition[] = '( ' . implode(
-					' OR ',
-					array_map(
-						static function ( $col ) use ( $old ) {
-							return self::get_match_condition( $col, $old );
-						},
-						$group['columns']
-					)
-				) . ' )';
-			}
-			$conditions[] = implode( ' AND ', $condition );
+			return array( array(), array() );
 		}
 
-		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
-		$selects              = $escaped_primary_keys;
-		if ( count( $conditions ) > 1 ) {
-			foreach ( $conditions as $condition ) {
-				$selects[] = "CASE WHEN $condition THEN 1 ELSE 0 END";
-			}
+		if ( 'sqlite' === Utils\get_db_type() ) {
+			WP_CLI::error( sprintf( "Replacing several columns of table '%s' with --where is not supported on SQLite. Replace one column per run instead, e.g. with --include-columns.", $table ) );
 		}
-		$select_sql   = implode( ', ', $selects );
-		$table_sql    = self::esc_sql_ident( $table );
-		$order_by_sql = implode( ' ASC, ', $escaped_primary_keys ) . ' ASC';
-		$base_where   = '( ( ' . implode( ' ) OR ( ', $conditions ) . ' ) )';
-		$key_count    = count( $primary_keys );
-		$key_sql      = 1 === $key_count ? $escaped_primary_keys[0] : '( ' . implode( ', ', $escaped_primary_keys ) . ' )';
-		$limit        = 1000;
 
-		$key_lists = array_fill( 0, count( $groups ), array() );
-		$chunks    = array_fill( 0, count( $groups ), array() );
-		$add_chunk = static function ( $keys ) use ( $key_sql ) {
-			return "( $key_sql IN ( " . implode( ', ', $keys ) . ' ) )';
-		};
+		$keys_sql    = implode( ', ', self::esc_sql_ident( $primary_keys ) );
+		$row_key_sql = 1 === count( $primary_keys ) ? $keys_sql : "( $keys_sql )";
+		$table_sql   = self::esc_sql_ident( $table );
+		$suffix      = substr( md5( uniqid( '', true ) ), 0, 8 );
 
-		$where = $base_where;
-		while ( true ) {
+		$key_clauses = array();
+		$key_tables  = array();
+		foreach ( array_keys( $groups ) as $index => $condition ) {
+			$key_table     = "wp_cli_search_replace_rows_{$suffix}_{$index}";
+			$key_table_sql = self::esc_sql_ident( $key_table );
+
+			$suppress_errors = $wpdb->suppress_errors();
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident, the --where clauses are raw SQL by design
-			$rows = $wpdb->get_results( "SELECT $select_sql FROM $table_sql WHERE $where ORDER BY $order_by_sql LIMIT $limit", ARRAY_N );
-			if ( ! $rows ) {
-				break;
-			}
-			foreach ( $rows as $row ) {
-				$values = self::esc_sql_value( array_map( 'strval', array_slice( $row, 0, $key_count ) ) );
-				$key    = 1 === $key_count ? $values[0] : '( ' . implode( ', ', $values ) . ' )';
-				foreach ( $groups as $g => $group ) {
-					if ( count( $groups ) > 1 && ! $row[ $key_count + $g ] ) {
-						continue;
-					}
-					$key_lists[ $g ][] = $key;
-					if ( count( $key_lists[ $g ] ) >= $limit ) {
-						$chunks[ $g ][]  = $add_chunk( $key_lists[ $g ] );
-						$key_lists[ $g ] = array();
-					}
+			$wpdb->query( "CREATE TEMPORARY TABLE $key_table_sql ( PRIMARY KEY ( $keys_sql ) ) SELECT $keys_sql FROM $table_sql WHERE $condition" );
+			$error = $wpdb->last_error;
+			$wpdb->suppress_errors( $suppress_errors );
+			if ( $error ) {
+				self::drop_tables( array_merge( $key_tables, array( $key_table ) ) );
+				if ( false !== stripos( $error, 'denied' ) ) {
+					WP_CLI::error( sprintf( "Could not create a temporary table to hold the rows of table '%s' that --where matches: %s Replacing several columns of a table with --where needs the CREATE TEMPORARY TABLES privilege; without it, replace one column per run, e.g. with --include-columns.", $table, $error ) );
 				}
+				WP_CLI::error( sprintf( "Could not select the rows of table '%s' that --where matches: %s", $table, $error ) );
 			}
-			$where = $base_where . ' AND ' . self::get_next_key_condition( $primary_keys, array_slice( end( $rows ), 0, $key_count ) );
-		}
+			$key_tables[] = $key_table;
 
-		$key_chunks = array();
-		foreach ( $groups as $g => $group ) {
-			if ( $key_lists[ $g ] ) {
-				$chunks[ $g ][] = $add_chunk( $key_lists[ $g ] );
-			}
-			foreach ( $group['columns'] as $col ) {
-				$key_chunks[ $col ] = $chunks[ $g ];
+			foreach ( $groups[ $condition ] as $col ) {
+				$key_clauses[ $col ] = "( $row_key_sql IN ( SELECT $keys_sql FROM $key_table_sql ) )";
 			}
 		}
 
-		return $key_chunks;
+		return array( $key_clauses, $key_tables );
+	}
+
+	/**
+	 * Drops temporary tables.
+	 *
+	 * @param string[] $tables The temporary table names.
+	 */
+	private static function drop_tables( $tables ) {
+		global $wpdb;
+
+		foreach ( $tables as $table ) {
+			$table_sql = self::esc_sql_ident( $table );
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+			$wpdb->query( "DROP TEMPORARY TABLE IF EXISTS $table_sql" );
+		}
 	}
 
 	/**

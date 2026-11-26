@@ -513,6 +513,166 @@ Feature: Test search-replace --where option
       | posts:post_title:post_content LIKE "%foo%";posts:post_content:post_title LIKE "%foo%" |           |
       | posts:post_title:post_content LIKE "%foo%";posts:post_content:post_title LIKE "%foo%" | --precise |
 
+  @require-mysql
+  Scenario Outline: Where condition on a text primary key replaces only the rows it selects
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_slugs ( slug VARCHAR(20) NOT NULL, title TEXT, body TEXT, PRIMARY KEY (slug) )"`
+    And I run `wp db query "INSERT INTO wp_slugs VALUES ('01', 'zero one foo', 'zero one foo'), ('1', 'one foo', 'one foo')"`
+
+    When I run `wp search-replace foo bar --all-tables --where="wp_slugs::slug = '1'" --dry-run --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp search-replace foo bar --all-tables --where="wp_slugs::slug = '1'" --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp db query "SELECT CONCAT_WS('|', slug, title, body) FROM wp_slugs ORDER BY slug" --skip-column-names`
+    Then STDOUT should be:
+      """
+      01|zero one foo|zero one foo
+      1|one bar|one bar
+      """
+
+    Examples:
+      | flags     |
+      |           |
+      | --precise |
+
+  @require-mysql
+  Scenario Outline: Where never replaces a primary key column
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_keyed ( slug VARCHAR(20) NOT NULL, title TEXT, body TEXT, PRIMARY KEY (slug) )"`
+    And I run `wp db query "INSERT INTO wp_keyed VALUES ('foo', 'foo', 'foo'), ('other', 'foo', 'foo')"`
+
+    When I run `wp search-replace foo bar --all-tables --where="wp_keyed::slug = 'foo'" --dry-run --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp search-replace foo bar --all-tables --where="wp_keyed::slug = 'foo'" --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp db query "SELECT CONCAT_WS('|', slug, title, body) FROM wp_keyed ORDER BY slug" --skip-column-names`
+    Then STDOUT should be:
+      """
+      foo|bar|bar
+      other|foo|foo
+      """
+
+    Examples:
+      | flags     |
+      |           |
+      | --precise |
+
+  @require-mysql
+  Scenario Outline: A failed row selection stops before any column is replaced
+    Given a WP install
+    And I run `wp post create --post_title='Title foo' --post_content='Content foo' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I try `wp search-replace foo bar --where='posts:post_content,post_title:no_such_column = 1' <flags>`
+    Then STDERR should contain:
+      """
+      Error: Could not select the rows of table 'wp_posts' that --where matches:
+      """
+    And STDERR should contain:
+      """
+      no_such_column
+      """
+    And the return code should be 1
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title foo
+      """
+
+    When I run `wp post get {POST_ID} --field=content`
+    Then STDOUT should be:
+      """
+      Content foo
+      """
+
+    Examples:
+      | flags     |
+      |           |
+      | --dry-run |
+      | --precise |
+
+  @require-mysql
+  Scenario: A missing privilege for the temporary table gives a clear error
+    Given a WP install
+    And a wp-content/mu-plugins/deny-temporary-tables.php file:
+      """
+      <?php
+      // A temporary table in information_schema is always denied, like a missing CREATE TEMPORARY TABLES privilege.
+      add_filter(
+        'query',
+        function ( $query ) {
+          return preg_replace( '/^CREATE TEMPORARY TABLE /', 'CREATE TEMPORARY TABLE information_schema.', $query );
+        }
+      );
+      """
+    And I run `wp post create --post_title='Title foo' --post_content='Content foo' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I try `wp search-replace foo bar --where='posts::post_status = "publish" OR post_status = "draft"'`
+    Then STDERR should contain:
+      """
+      Error: Could not create a temporary table to hold the rows of table 'wp_posts' that --where matches:
+      """
+    And STDERR should contain:
+      """
+      needs the CREATE TEMPORARY TABLES privilege; without it, replace one column per run
+      """
+    And the return code should be 1
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title foo
+      """
+
+  @require-sqlite
+  Scenario: Where conditions for several columns of a table are rejected on SQLite
+    Given a WP install
+    And I run `wp post create --post_title='Title foo' --post_content='Content foo' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I try `wp search-replace foo bar --where='posts:post_content,post_title:post_content LIKE "%foo%"'`
+    Then STDERR should contain:
+      """
+      Error: Replacing several columns of table 'wp_posts' with --where is not supported on SQLite.
+      """
+    And the return code should be 1
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title foo
+      """
+
+    When I run `wp search-replace foo bar --where='posts:post_title:post_content LIKE "%foo%"'`
+    Then STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title bar
+      """
+
   Scenario: Where clause cannot be combined with an export
     Given a WP install
 
