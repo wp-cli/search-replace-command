@@ -323,9 +323,16 @@ class SearchReplacer {
 		$renames  = array();
 		$key_logs = array();
 		foreach ( $keys as $key ) {
-			$mark             = count( $this->log_data );
-			$renames[ $key ]  = $this->replace_key( $key );
-			$key_logs[ $key ] = array_splice( $this->log_data, $mark );
+			$mark            = count( $this->log_data );
+			$renames[ $key ] = $this->replace_key( $key );
+			// Move only the entries appended for this key out of the value log,
+			// instead of rebuilding the whole log for every key.
+			$pending  = array();
+			$appended = count( $this->log_data ) - $mark;
+			for ( $i = 0; $i < $appended; $i++ ) {
+				$pending[] = array_pop( $this->log_data );
+			}
+			$key_logs[ $key ] = array_reverse( $pending );
 		}
 		return array( $renames, $key_logs );
 	}
@@ -342,7 +349,9 @@ class SearchReplacer {
 		$accepted = array();
 		foreach ( $renames as $key => $new_key ) {
 			if ( $new_key !== $key ) {
-				$accepted = array_merge( $accepted, $key_logs[ $key ] );
+				foreach ( $key_logs[ $key ] as $entry ) {
+					$accepted[] = $entry;
+				}
 			}
 		}
 		if ( $accepted ) {
@@ -414,6 +423,17 @@ class SearchReplacer {
 		}
 		list( $renames, $key_logs ) = $this->plan_key_renames( $keys );
 
+		if ( ! $is_array_access ) {
+			// Property names are always strings, but as keys of $renames numeric
+			// names such as "8" become integers. Compare them as strings, so that
+			// an unchanged numeric property name is not treated as renamed.
+			foreach ( $renames as $key => $new_key ) {
+				if ( (string) $new_key === (string) $key ) {
+					$renames[ $key ] = $key;
+				}
+			}
+		}
+
 		$case_insensitive = false;
 		$keep_offsets     = false;
 		if ( $is_array_access ) {
@@ -459,16 +479,18 @@ class SearchReplacer {
 			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
 
-		// Take a reference to each writable property, so that renaming a
-		// property keeps any reference it shares with other properties.
+		// Take a reference to each property that is renamed, so that it keeps
+		// any reference it shares with other properties. Properties that keep
+		// their name are read and assigned normally, so that, for example,
+		// PHP 8.4 `set` hooks still apply to them.
 		$refs      = array();
 		$originals = array();
 		foreach ( $renames as $key => $new_key ) {
-			if ( $is_array_access || isset( $readonly[ $key ] ) ) {
-				$originals[ $key ] = $this->read_property( $data, $is_array_access, $key );
-			} else {
+			if ( ! $is_array_access && $new_key !== $key ) {
 				$refs[ $key ]      = &$data->$key;
 				$originals[ $key ] = $refs[ $key ];
+			} else {
+				$originals[ $key ] = $this->read_property( $data, $is_array_access, $key );
 			}
 		}
 
@@ -479,8 +501,9 @@ class SearchReplacer {
 			$values[ $key ] = $this->run_recursively( $originals[ $key ], false, $recursion_level + 1, $visited_data );
 		}
 
-		$removed = array();
-		$written = array();
+		$removed  = array();
+		$written  = array();
+		$assigned = array();
 		try {
 			foreach ( $renames as $key => $new_key ) {
 				if ( $new_key !== $key ) {
@@ -505,11 +528,19 @@ class SearchReplacer {
 				if ( $new_key !== $key ) {
 					$data->$new_key = &$refs[ $key ];
 					$written[]      = $new_key;
+					$refs[ $key ]   = $values[ $key ];
+				} else {
+					$data->$key       = $values[ $key ];
+					$assigned[ $key ] = true;
 				}
-				$refs[ $key ] = $values[ $key ];
 			}
 		} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
-			$this->restore_object( $data, $is_array_access, $renames, $originals, $refs, $removed, $written );
+			$this->restore_object( $data, $is_array_access, $renames, $originals, $refs, $removed, $written, $assigned );
+			throw $exception;
+		} catch ( Exception $exception ) {
+			// ArrayAccess implementations may throw any exception, for example
+			// from offsetUnset() after an earlier offset was already removed.
+			$this->restore_object( $data, $is_array_access, $renames, $originals, $refs, $removed, $written, $assigned );
 			throw $exception;
 		}
 
@@ -520,6 +551,11 @@ class SearchReplacer {
 	/**
 	 * Restore an object to its original property names and values after a failed modification.
 	 *
+	 * Removed properties and offsets are added back at the end, so the
+	 * properties and offsets that followed the first removed one are moved
+	 * to the end as well, to restore the original order. Declared properties
+	 * keep their position anyway and are not moved.
+	 *
 	 * @param object                        $data            The object to restore.
 	 * @param bool                          $is_array_access Whether the object implements ArrayAccess.
 	 * @param array<int|string, int|string> $renames         Map of original key to destination key.
@@ -527,20 +563,38 @@ class SearchReplacer {
 	 * @param array<int|string, mixed>      $refs            References to the original properties, by original key.
 	 * @param array<int|string, bool>       $removed         Original keys that were removed.
 	 * @param array<int|string>             $written         Destination keys that were written.
+	 * @param array<int|string, bool>       $assigned        Original keys that kept their name and were assigned.
 	 * @return void
 	 */
-	private function restore_object( $data, $is_array_access, $renames, $originals, &$refs, $removed, $written ) {
+	private function restore_object( $data, $is_array_access, $renames, $originals, &$refs, $removed, $written, $assigned ) {
 		foreach ( $written as $name ) {
 			$this->remove_property( $data, $is_array_access, $name );
 		}
+		$class = get_class( $data );
+		$move  = false;
 		foreach ( $renames as $key => $new_key ) {
+			if ( isset( $removed[ $key ] ) ) {
+				$move = true;
+			}
 			if ( $is_array_access ) {
-				$this->write_property( $data, true, $key, $originals[ $key ] );
-			} elseif ( array_key_exists( $key, $refs ) ) {
-				if ( isset( $removed[ $key ] ) ) {
-					$data->$key = &$refs[ $key ];
+				if ( $move && ! isset( $removed[ $key ] ) ) {
+					$this->remove_property( $data, true, $key );
 				}
+				$this->write_property( $data, true, $key, $originals[ $key ] );
+			} elseif ( isset( $removed[ $key ] ) ) {
+				$data->$key   = &$refs[ $key ];
 				$refs[ $key ] = $originals[ $key ];
+			} elseif ( $move && ! property_exists( $class, (string) $key ) ) {
+				// Move a dynamic property to the end, keeping any reference it shares.
+				$ref = &$data->$key;
+				unset( $data->$key );
+				$data->$key = &$ref;
+				if ( isset( $assigned[ $key ] ) ) {
+					$ref = $originals[ $key ];
+				}
+				unset( $ref );
+			} elseif ( isset( $assigned[ $key ] ) ) {
+				$data->$key = $originals[ $key ];
 			}
 		}
 	}

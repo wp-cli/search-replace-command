@@ -2078,7 +2078,11 @@ Feature: Do global search/replace
       """
     And STDOUT should contain:
       """
-      s:12:"keep-mutable";
+      s:14:"newtok_mutable";s:12:"keep-mutable";
+      """
+    And STDOUT should not contain:
+      """
+      "oldtok_mutable"
       """
 
   @require-mysql
@@ -2126,4 +2130,93 @@ Feature: Do global search/replace
     And STDOUT should contain:
       """
       changed
+      """
+
+  @require-mysql
+  Scenario: Keep the order of numeric object property names that are not renamed with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-numeric-property.php file:
+      """
+      <?php
+      $object        = new stdClass();
+      $object->{'8'} = 'top';
+      $object->label = 'keep';
+      update_option( 'recurse_keys_numeric_property_test', array( 'item' => $object, 'other' => 'oldtok' ), false );
+      """
+    And a check-recurse-keys-numeric-property.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_numeric_property_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-numeric-property.php`
+
+    When I run `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-numeric-property.php`
+    Then STDOUT should be:
+      """
+      a:2:{s:4:"item";O:8:"stdClass":2:{s:1:"8";s:3:"top";s:5:"label";s:4:"keep";}s:5:"other";s:6:"newtok";}
+      """
+
+    When I run `wp search-replace 'stdClass' 'otherClass' wp_options --include-columns=option_value --recurse-keys --dry-run --report-changed-only`
+    Then STDOUT should not contain:
+      """
+      wp_options
+      """
+
+  @require-mysql
+  Scenario: Restore an object when removing a property throws an exception with --recurse-keys
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-throwing-unset.php file:
+      """
+      <?php
+      class Recurse_Keys_Throwing_Unset_Test extends ArrayObject {
+          public static $unset_calls = 0;
+          #[ReturnTypeWillChange]
+          public function offsetUnset( $key ) {
+              if ( 2 === ++self::$unset_calls ) {
+                  throw new Exception( 'second removal failed' );
+              }
+              parent::offsetUnset( $key );
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Throwing_Unset_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-throwing-unset.php file:
+      """
+      <?php
+      $object = new Recurse_Keys_Throwing_Unset_Test( array( 'oldtok_a' => 'value-a', 'keep' => 'value-keep', 'oldtok_b' => 'value-b' ) );
+      update_option( 'recurse_keys_throwing_unset_test', array( 'item' => $object ), false );
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_throwing_unset_test'" );
+      """
+    And a check-recurse-keys-throwing-unset.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_throwing_unset_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-throwing-unset.php`
+    And save STDOUT as {ORIGINAL}
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then the return code should be 0
+
+    When I run `wp eval-file check-recurse-keys-throwing-unset.php`
+    Then STDOUT should be:
+      """
+      {ORIGINAL}
+      """
+    And STDOUT should contain:
+      """
+      s:8:"oldtok_a";s:7:"value-a";s:4:"keep";s:10:"value-keep";s:8:"oldtok_b";s:7:"value-b";
       """
