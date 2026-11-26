@@ -468,6 +468,51 @@ Feature: Test search-replace --where option
       Post foo
       """
 
+  @require-mysql
+  Scenario Outline: Where condition selects the rows before any column is replaced
+    Given a WP install
+    And I run `wp post create --post_title='Title foo' --post_content='Content foo' --porcelain`
+    And save STDOUT as {MATCH_ID}
+    And I run `wp post create --post_title='Other foo' --post_content='Other none' --porcelain`
+    And save STDOUT as {OTHER_ID}
+
+    When I run `wp search-replace foo bar --where='<where>' --dry-run --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp search-replace foo bar --where='<where>' --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp post get {MATCH_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Title bar
+      """
+
+    When I run `wp post get {MATCH_ID} --field=content`
+    Then STDOUT should be:
+      """
+      Content bar
+      """
+
+    When I run `wp post get {OTHER_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Other foo
+      """
+
+    Examples:
+      | where                                                                            | flags     |
+      | posts:post_content,post_title:post_content LIKE "%foo%"                          |           |
+      | posts:post_content,post_title:post_content LIKE "%foo%"                          | --precise |
+      | posts:post_title:post_content LIKE "%foo%";posts:post_content:post_title LIKE "%foo%" |           |
+      | posts:post_title:post_content LIKE "%foo%";posts:post_content:post_title LIKE "%foo%" | --precise |
+
   Scenario: Where clause cannot be combined with an export
     Given a WP install
 

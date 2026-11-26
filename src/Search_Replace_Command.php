@@ -237,6 +237,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * : Perform the replacement on specific rows. Use semi-colon to
 	 * specify multiple specifications. Only the tables named in --where are processed.
 	 * <row-col-spec> format: <table>[,table]:[column,...]:quoted-SQL-condition
+	 * The conditions select the rows once per table, before any column is replaced, so a
+	 * replacement in a column that a condition refers to does not change the rows of the other columns.
 	 * Cannot be combined with --export.
 	 *
 	 * [--revisions]
@@ -644,9 +646,22 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			$stats_outdated = false;
 
+			$key_chunks = $this->get_where_key_chunks( $table, $primary_keys, $columns, $old );
+
 			foreach ( $columns as $i => $col ) {
 
 				$clauses = $this->get_clauses( $table, $col );
+
+				// With the rows selected up front, handle the column one chunk of those rows at a time.
+				$clause_sets = array( $clauses );
+				if ( isset( $key_chunks[ $col ] ) ) {
+					$clause_sets = array_map(
+						static function ( $key_chunk ) {
+							return array( $key_chunk );
+						},
+						$key_chunks[ $col ]
+					);
+				}
 
 				if ( $this->verbose && 'count' !== $this->format ) {
 					$this->start_time = microtime( true );
@@ -677,29 +692,47 @@ class Search_Replace_Command extends WP_CLI_Command {
 						// SQLite does not support REGEXP by default, fall back to PHP processing.
 						$serial_row = true;
 					} else {
-						$where = $clauses ? ' AND ' . implode( ' AND ', $clauses ) : '';
-						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-						$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' $where LIMIT 1" );
+						$serial_row = null;
+						foreach ( $clause_sets as $set_clauses ) {
+							$where = $set_clauses ? ' AND ' . implode( ' AND ', $set_clauses ) : '';
+							// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+							$serial_row = $wpdb->get_row( "SELECT * FROM $table_sql WHERE $col_sql REGEXP '^[aiO]:[1-9]' $where LIMIT 1" );
 
-						// When the regex triggers an error, we should fall back to PHP
-						if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
-							$serial_row = true;
+							// When the regex triggers an error, we should fall back to PHP
+							if ( false !== strpos( $wpdb->last_error, 'ERROR 1139' ) ) {
+								$serial_row = true;
+							}
+							if ( null !== $serial_row ) {
+								break;
+							}
 						}
 					}
 				}
 
+				$count = 0;
 				if ( $php_only || $this->regex || null !== $serial_row ) {
 					$type = 'PHP';
 					// Nothing to replace in a column without matches.
-					$count = null !== $stats && 0 === $stats['matches'] ? 0 : $this->php_handle_col( $col, $primary_keys, $table, $old, $new, $clauses );
+					if ( null === $stats || 0 !== $stats['matches'] ) {
+						foreach ( $clause_sets as $set_clauses ) {
+							$count += $this->php_handle_col( $col, $primary_keys, $table, $old, $new, $set_clauses );
+						}
+					}
 				} else {
 					$type = 'SQL';
 					if ( null !== $stats && ( 0 === $stats['matches'] || ( $this->dry_run && ! $this->log_handle ) ) ) {
 						// The dry run count is the number of matching rows, which is already known.
 						$count = $stats['matches'];
 					} else {
-						$count = $this->sql_handle_col( $col, $primary_keys, $table, $old, $new, $clauses );
+						foreach ( $clause_sets as $set_clauses ) {
+							$count += $this->sql_handle_col( $col, $primary_keys, $table, $old, $new, $set_clauses );
+						}
 					}
+				}
+
+				if ( $this->verbose && 'table' === $this->format ) {
+					$time = round( microtime( true ) - $this->start_time, 3 );
+					WP_CLI::log( sprintf( '%d rows affected using %s (in %ss).', $count, $type, $time ) );
 				}
 
 				if ( $count && ! $this->dry_run && ! $this->export_handle ) {
@@ -886,10 +919,6 @@ class Search_Replace_Command extends WP_CLI_Command {
 			}
 		}
 
-		if ( $this->verbose && 'table' === $this->format ) {
-			$time = round( microtime( true ) - $this->start_time, 3 );
-			WP_CLI::log( sprintf( '%d rows affected using SQL (in %ss).', $count, $time ) );
-		}
 		return $count;
 	}
 
@@ -917,12 +946,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$where_key          = '';
 
 		if ( ! $this->regex ) {
-			$old_json  = self::json_encode_strip_quotes( $old );
-			$condition = "$col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old ) . '%' );
-			if ( $old_json !== $old ) {
-				$condition = "( $condition OR $col_sql" . $wpdb->prepare( ' LIKE BINARY %s', '%' . self::esc_like( $old_json ) . '%' ) . ' )';
-			}
-			$base_key_condition[] = $condition;
+			$base_key_condition[] = self::get_match_condition( $col, $old );
 		}
 
 		$where_key            = $base_key_condition ? ' WHERE ' . implode( ' AND ', $base_key_condition ) : '';
@@ -1016,41 +1040,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 			}
 
-			// Because we are ordering by primary keys from least to greatest,
-			// we can exclude previous chunks from consideration by adding greater-than conditions
-			// to insist the next chunk's keys must be greater than the last of this chunk's keys.
-			$last_row            = end( $rows );
-			$next_key_conditions = array();
-
-			// NOTE: For a composite key (X, Y, Z), selecting the next rows requires the following conditions:
-			// ( X = lastX AND Y = lastY AND Z > lastZ ) OR
-			// ( X = lastX AND Y > lastY ) OR
-			// ( X > lastX )
-			for ( $last_key_index = count( $primary_keys ) - 1; $last_key_index >= 0; $last_key_index-- ) {
-				$next_key_subconditions = array();
-
-				for ( $i = 0; $i <= $last_key_index; $i++ ) {
-					$k = $primary_keys[ $i ];
-					$v = $last_row->{ $k };
-
-					if ( $i < $last_key_index ) {
-						$next_key_subconditions[] = self::esc_sql_ident( $k ) . ' = ' . self::esc_sql_value( $v );
-					} else {
-						$next_key_subconditions[] = self::esc_sql_ident( $k ) . ' > ' . self::esc_sql_value( $v );
-					}
-				}
-
-				$next_key_conditions[] = '( ' . implode( ' AND ', $next_key_subconditions ) . ' )';
-			}
-
+			$last_row               = end( $rows );
 			$where_key_conditions   = $base_key_condition;
-			$where_key_conditions[] = '( ' . implode( ' OR ', $next_key_conditions ) . ' )';
+			$where_key_conditions[] = self::get_next_key_condition( $primary_keys, array_values( (array) $last_row ) );
 			$where_key              = 'WHERE ' . implode( ' AND ', $where_key_conditions );
-		}
-
-		if ( $this->verbose && 'table' === $this->format ) {
-			$time = round( microtime( true ) - $this->start_time, 3 );
-			WP_CLI::log( sprintf( '%d rows affected using PHP (in %ss).', $count, $time ) );
 		}
 
 		return $count;
@@ -1197,17 +1190,10 @@ class Search_Replace_Command extends WP_CLI_Command {
 			return array();
 		}
 
-		$old_json = self::json_encode_strip_quotes( $old );
-		$selects  = array();
+		$selects = array();
 		foreach ( $columns as $col ) {
-			$col_sql = self::esc_sql_ident( $col );
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-			$match = $wpdb->prepare( "$col_sql LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' );
-			if ( $old_json !== $old ) {
-				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
-				$match = "( $match OR " . $wpdb->prepare( "$col_sql LIKE BINARY %s", '%' . self::esc_like( $old_json ) . '%' ) . ' )';
-			}
-			$selects[] = "SUM( $match )";
+			$col_sql   = self::esc_sql_ident( $col );
+			$selects[] = 'SUM( ' . self::get_match_condition( $col, $old ) . ' )';
 			$selects[] = "MAX( $col_sql REGEXP '^[aiO]:[1-9]' )";
 		}
 
@@ -1755,6 +1741,164 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 */
 	private function table_has_clauses( $table ) {
 		return ! empty( $this->where[ $table ] ) || null !== $this->get_revision_clause( $table );
+	}
+
+	/**
+	 * Gets the SQL condition that a column contains the search string, plain or JSON-encoded.
+	 *
+	 * @param string $col The column name.
+	 * @param string $old The search string.
+	 * @return string The condition.
+	 */
+	private static function get_match_condition( $col, $old ) {
+		global $wpdb;
+
+		$col_sql  = self::esc_sql_ident( $col );
+		$old_json = self::json_encode_strip_quotes( $old );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+		$condition = $wpdb->prepare( "$col_sql LIKE BINARY %s", '%' . self::esc_like( $old ) . '%' );
+		if ( $old_json !== $old ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+			$condition = "( $condition OR " . $wpdb->prepare( "$col_sql LIKE BINARY %s", '%' . self::esc_like( $old_json ) . '%' ) . ' )';
+		}
+		return $condition;
+	}
+
+	/**
+	 * Gets the SQL condition that selects the rows after a given row, in primary key order.
+	 *
+	 * For a composite key (X, Y, Z), the rows after (lastX, lastY, lastZ) are:
+	 * ( X = lastX AND Y = lastY AND Z > lastZ ) OR ( X = lastX AND Y > lastY ) OR ( X > lastX )
+	 *
+	 * @param string[] $primary_keys The primary key columns.
+	 * @param string[] $last_values  The primary key values of the last row, in the same order.
+	 * @return string The condition.
+	 */
+	private static function get_next_key_condition( $primary_keys, $last_values ) {
+		$next_key_conditions = array();
+		for ( $last_key_index = count( $primary_keys ) - 1; $last_key_index >= 0; $last_key_index-- ) {
+			$next_key_subconditions = array();
+			for ( $i = 0; $i <= $last_key_index; $i++ ) {
+				$operator                 = $i < $last_key_index ? ' = ' : ' > ';
+				$next_key_subconditions[] = self::esc_sql_ident( $primary_keys[ $i ] ) . $operator . self::esc_sql_value( (string) $last_values[ $i ] );
+			}
+			$next_key_conditions[] = '( ' . implode( ' AND ', $next_key_subconditions ) . ' )';
+		}
+		return '( ' . implode( ' OR ', $next_key_conditions ) . ' )';
+	}
+
+	/**
+	 * Selects the rows that the --where conditions match, once per table, before any column is replaced.
+	 *
+	 * Otherwise, replacing a column that a condition refers to would change the rows that the
+	 * columns after it are replaced in, and the live run would differ from the dry run.
+	 * The rows are returned as conditions on their primary keys, each covering a chunk of rows,
+	 * so that neither the memory nor the queries grow with one huge list of keys.
+	 *
+	 * @param string   $table        The table name.
+	 * @param string[] $primary_keys The primary key columns.
+	 * @param string[] $columns      The columns to replace in.
+	 * @param string   $old          The search string.
+	 * @return array<string, string[]>|null The key conditions per column with --where conditions,
+	 *                                      or null if a single column is replaced or no --where applies.
+	 */
+	private function get_where_key_chunks( $table, $primary_keys, $columns, $old ) {
+		global $wpdb;
+
+		// With a single column, no replacement can affect the rows the conditions select.
+		if ( empty( $this->where[ $table ] ) || count( $columns ) < 2 ) {
+			return null;
+		}
+
+		// Columns with the same conditions share the same rows.
+		$groups = array();
+		foreach ( $columns as $col ) {
+			$clauses = $this->get_clauses( $table, $col );
+			if ( $clauses ) {
+				$id                         = implode( ' AND ', $clauses );
+				$groups[ $id ]['clauses']   = $clauses;
+				$groups[ $id ]['columns'][] = $col;
+			}
+		}
+		if ( ! $groups ) {
+			return null;
+		}
+		$groups = array_values( $groups );
+
+		$conditions = array();
+		foreach ( $groups as $group ) {
+			$condition = $group['clauses'];
+			if ( ! $this->regex ) {
+				// Only rows that contain the search string in one of the columns can change.
+				$condition[] = '( ' . implode(
+					' OR ',
+					array_map(
+						static function ( $col ) use ( $old ) {
+							return self::get_match_condition( $col, $old );
+						},
+						$group['columns']
+					)
+				) . ' )';
+			}
+			$conditions[] = implode( ' AND ', $condition );
+		}
+
+		$escaped_primary_keys = self::esc_sql_ident( $primary_keys );
+		$selects              = $escaped_primary_keys;
+		if ( count( $conditions ) > 1 ) {
+			foreach ( $conditions as $condition ) {
+				$selects[] = "CASE WHEN $condition THEN 1 ELSE 0 END";
+			}
+		}
+		$select_sql   = implode( ', ', $selects );
+		$table_sql    = self::esc_sql_ident( $table );
+		$order_by_sql = implode( ' ASC, ', $escaped_primary_keys ) . ' ASC';
+		$base_where   = '( ( ' . implode( ' ) OR ( ', $conditions ) . ' ) )';
+		$key_count    = count( $primary_keys );
+		$key_sql      = 1 === $key_count ? $escaped_primary_keys[0] : '( ' . implode( ', ', $escaped_primary_keys ) . ' )';
+		$limit        = 1000;
+
+		$key_lists = array_fill( 0, count( $groups ), array() );
+		$chunks    = array_fill( 0, count( $groups ), array() );
+		$add_chunk = static function ( $keys ) use ( $key_sql ) {
+			return "( $key_sql IN ( " . implode( ', ', $keys ) . ' ) )';
+		};
+
+		$where = $base_where;
+		while ( true ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident, the --where clauses are raw SQL by design
+			$rows = $wpdb->get_results( "SELECT $select_sql FROM $table_sql WHERE $where ORDER BY $order_by_sql LIMIT $limit", ARRAY_N );
+			if ( ! $rows ) {
+				break;
+			}
+			foreach ( $rows as $row ) {
+				$values = self::esc_sql_value( array_map( 'strval', array_slice( $row, 0, $key_count ) ) );
+				$key    = 1 === $key_count ? $values[0] : '( ' . implode( ', ', $values ) . ' )';
+				foreach ( $groups as $g => $group ) {
+					if ( count( $groups ) > 1 && ! $row[ $key_count + $g ] ) {
+						continue;
+					}
+					$key_lists[ $g ][] = $key;
+					if ( count( $key_lists[ $g ] ) >= $limit ) {
+						$chunks[ $g ][]  = $add_chunk( $key_lists[ $g ] );
+						$key_lists[ $g ] = array();
+					}
+				}
+			}
+			$where = $base_where . ' AND ' . self::get_next_key_condition( $primary_keys, array_slice( end( $rows ), 0, $key_count ) );
+		}
+
+		$key_chunks = array();
+		foreach ( $groups as $g => $group ) {
+			if ( $key_lists[ $g ] ) {
+				$chunks[ $g ][] = $add_chunk( $key_lists[ $g ] );
+			}
+			foreach ( $group['columns'] as $col ) {
+				$key_chunks[ $col ] = $chunks[ $g ];
+			}
+		}
+
+		return $key_chunks;
 	}
 
 	/**
