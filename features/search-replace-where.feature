@@ -709,7 +709,8 @@ Feature: Test search-replace --where option
       """
     And the return code should be 1
 
-    When I run `wp post get {POST_ID} --field=title`
+    # Read the title from the database: search-replace doesn't flush a persistent object cache.
+    When I run `wp db query "SELECT post_title FROM wp_posts WHERE ID = {POST_ID}" --skip-column-names`
     Then STDOUT should be:
       """
       Title foo
@@ -721,9 +722,7 @@ Feature: Test search-replace --where option
       Success: Made 1 replacement.
       """
 
-    # The title was read above, so a persistent object cache still holds the old one.
-    When I run `wp cache flush`
-    And I run `wp post get {POST_ID} --field=title`
+    When I run `wp db query "SELECT post_title FROM wp_posts WHERE ID = {POST_ID}" --skip-column-names`
     Then STDOUT should be:
       """
       Title bar
