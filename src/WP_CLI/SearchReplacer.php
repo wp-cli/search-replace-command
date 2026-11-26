@@ -63,6 +63,11 @@ class SearchReplacer {
 	private $log_data = [];
 
 	/**
+	 * @var string[]
+	 */
+	private $log_new_data = [];
+
+	/**
 	 * @var int
 	 */
 	private $max_recursion;
@@ -287,7 +292,8 @@ class SearchReplacer {
 
 				$data = $result;
 				if ( $this->logging && $old_data !== $data ) {
-					$this->log_data[] = $old_data;
+					$this->log_data[]     = $old_data;
+					$this->log_new_data[] = $data;
 				}
 			}
 
@@ -310,10 +316,20 @@ class SearchReplacer {
 	}
 
 	/**
+	 * Gets the data strings after replacements saved for this run when logging,
+	 * in the same order as get_log_data().
+	 * @return string[] Array of data strings, after replacements.
+	 */
+	public function get_log_new_data() {
+		return $this->log_new_data;
+	}
+
+	/**
 	 * Clears data stored for logging.
 	 */
 	public function clear_log_data() {
-		$this->log_data = array();
+		$this->log_data     = array();
+		$this->log_new_data = array();
 	}
 
 	/**

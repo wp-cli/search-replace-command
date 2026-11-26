@@ -213,3 +213,29 @@ Feature: Test search-replace --callback option
       """
       BAZ bar
       """
+
+  @require-mysql
+  Scenario: Callback runs even when the search and replacement values are identical
+    Given a WP install
+    And a callback-upper.php file:
+      """
+      <?php
+      function upper_callback( $data, $replacement ) {
+        return str_replace( 'foo', strtoupper( $replacement ), $data );
+      }
+      """
+    And I run `wp post create --post_title='foo bar' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I run `wp search-replace 'foo' 'foo' wp_posts --include-columns=post_title --callback='upper_callback' --require=callback-upper.php`
+    Then STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+    And STDERR should be empty
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      FOO bar
+      """

@@ -439,7 +439,8 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$this->where             = $this->develop_where_specs( Utils\get_flag_value( $assoc_args, 'where' ) );
 		$this->exclude_revisions = ! Utils\get_flag_value( $assoc_args, 'revisions', true );
 
-		if ( $old === $new && ! $this->regex ) {
+		// A callback may still change the matching strings, so only skip without one.
+		if ( $old === $new && ! $this->regex && ! $this->callback ) {
 			WP_CLI::warning( "Replacement value '{$old}' is identical to search value '{$new}'. Skipping operation." );
 			exit;
 		}
