@@ -1638,3 +1638,805 @@ Feature: Do global search/replace
       """
       Plain other.example content
       """
+
+  @require-mysql
+  Scenario: Serialized array keys are left alone by default
+    Given a WP install
+    And a setup-recurse-keys.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_test', array( 'https://old.example.com/key' => 'https://old.example.com/value', 'nested' => array( 'https://old.example.com/inner' => 'plain' ) ) );
+      """
+    And a check-recurse-keys.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_test' ), JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com'`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys.php`
+    Then STDOUT should contain:
+      """
+      https://old.example.com/key
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/value
+      """
+    And STDOUT should not contain:
+      """
+      https://new.example.com/key
+      """
+
+  @require-mysql
+  Scenario: Search/replace serialized array keys with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_test', array( 'https://old.example.com/key' => 'https://old.example.com/value', 'nested' => array( 'https://old.example.com/inner' => 'plain' ) ) );
+      """
+    And a check-recurse-keys.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_test' ), JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys.php`
+    Then STDOUT should contain:
+      """
+      https://new.example.com/key
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/value
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/inner
+      """
+    And STDOUT should not contain:
+      """
+      old.example.com
+      """
+
+  @require-mysql
+  Scenario: Search/replace object property names with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-object.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_object_test', (object) array( 'https://old.example.com/prop' => 'https://old.example.com/value' ) );
+      """
+    And a check-recurse-keys-object.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_object_test' ), JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys-object.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com'`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-object.php`
+    Then STDOUT should contain:
+      """
+      https://old.example.com/prop
+      """
+    And STDOUT should contain:
+      """
+      https://new.example.com/value
+      """
+
+    When I run `wp eval-file setup-recurse-keys-object.php`
+    And I run `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-object.php`
+    Then STDOUT should contain:
+      """
+      https://new.example.com/prop
+      """
+    And STDOUT should not contain:
+      """
+      old.example.com
+      """
+
+  @require-mysql
+  Scenario: Refuse to rename colliding array keys with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-collision.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_collision_test', array( 'https://old.example.com/key' => 'v1', 'https://new.example.com/key' => 'v2', 'other' => 'https://old.example.com/value' ), false );
+      """
+    And a check-recurse-keys-collision.php file:
+      """
+      <?php
+      $value = get_option( 'recurse_keys_collision_test' );
+      echo json_encode( $value, JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys-collision.php`
+
+    When I try `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then the return code should be 0
+    And STDOUT should contain:
+      """
+      Success:
+      """
+    And STDERR should contain:
+      """
+      two keys would map onto the same key
+      """
+
+    When I run `wp eval-file check-recurse-keys-collision.php`
+    Then STDOUT should contain:
+      """
+      "https://old.example.com/key":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "https://new.example.com/key":"v2"
+      """
+    And STDOUT should contain:
+      """
+      "other":"https://new.example.com/value"
+      """
+
+  @require-mysql
+  Scenario: Refuse to rename colliding object property names with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-object-collision.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_object_collision_test', (object) array( 'https://old.example.com/prop' => 'v1', 'https://new.example.com/prop' => 'v2', 'other' => 'https://old.example.com/value' ), false );
+      """
+    And a check-recurse-keys-object-collision.php file:
+      """
+      <?php
+      $value = get_option( 'recurse_keys_object_collision_test' );
+      echo json_encode( $value, JSON_UNESCAPED_SLASHES );
+      """
+    And I run `wp eval-file setup-recurse-keys-object-collision.php`
+
+    When I try `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then the return code should be 0
+    And STDOUT should contain:
+      """
+      Success:
+      """
+    And STDERR should contain:
+      """
+      two property names would map onto the same name
+      """
+
+    When I run `wp eval-file check-recurse-keys-object-collision.php`
+    Then STDOUT should contain:
+      """
+      "https://old.example.com/prop":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "https://new.example.com/prop":"v2"
+      """
+    And STDOUT should contain:
+      """
+      "other":"https://new.example.com/value"
+      """
+
+  @require-mysql
+  Scenario: Preserve shared references when renaming keys with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-refs.php file:
+      """
+      <?php
+      $shared = 'https://old.example.com/shared';
+      update_option( 'recurse_keys_ref_test', array( 'https://old.example.com/a' => &$shared, 'b' => &$shared ), false );
+      """
+    And a check-recurse-keys-refs.php file:
+      """
+      <?php
+      $raw = $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_ref_test'" );
+      $value = get_option( 'recurse_keys_ref_test' );
+      echo json_encode( $value, JSON_UNESCAPED_SLASHES ), "\n";
+      echo false !== strpos( $raw, 'R:2;' ) ? 'HASREF' : 'NOREF';
+      """
+    And I run `wp eval-file setup-recurse-keys-refs.php`
+
+    When I run `wp search-replace 'https://old.example.com' 'https://new.example.com' --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-refs.php`
+    Then STDOUT should contain:
+      """
+      "https://new.example.com/a":"https://new.example.com/shared"
+      """
+    And STDOUT should contain:
+      """
+      HASREF
+      """
+
+  Scenario: Key collision detection with --recurse-keys compares keys as PHP stores them
+    Given a WP install
+    And a recurse-keys-storage-identity.php file:
+      """
+      <?php
+      $replacer = new \WP_CLI\SearchReplacer( 'old', 'new', true, false, '', '/', false, -1, true );
+      $data     = array(
+          8     => 'v1',
+          '08'  => 'v2',
+          'old' => 'v3',
+      );
+      echo $replacer->run( serialize( $data ) ), "\n";
+      echo $replacer->run( serialize( (object) $data ) ), "\n";
+      """
+
+    When I run `wp eval-file recurse-keys-storage-identity.php`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      a:3:{i:8;s:2:"v1";s:2:"08";s:2:"v2";s:3:"new";s:2:"v3";}
+      """
+    And STDOUT should contain:
+      """
+      s:3:"new";s:2:"v3";}
+      """
+    And STDOUT should not contain:
+      """
+      "old"
+      """
+
+  Scenario: Overlapping property names are renamed without losing values with --recurse-keys
+    Given a WP install
+    And a recurse-keys-overlap.php file:
+      """
+      <?php
+      $replacer = new \WP_CLI\SearchReplacer( 'old', 'newold', true, false, '', '/', false, -1, true );
+      $data     = array(
+          'old'    => 'v1',
+          'newold' => 'v2',
+      );
+      $result   = unserialize( $replacer->run( serialize( (object) $data ) ) );
+      echo json_encode( $result );
+      """
+
+    When I run `wp eval-file recurse-keys-overlap.php`
+    Then STDERR should be empty
+    And STDOUT should contain:
+      """
+      "newold":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "newnewold":"v2"
+      """
+
+  # `CaseInsensitiveDictionary` is from Requests 2.0, which was added in 6.2.
+  @require-wp-6.2
+  Scenario: Case-insensitive dictionary offsets are not renamed onto an existing offset with --recurse-keys
+    Given a WP install
+    And a recurse-keys-case-insensitive.php file:
+      """
+      <?php
+      WP_CLI::add_hook(
+          'search_replace_unserialize_options',
+          function () {
+              return [ 'allowed_classes' => [ 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ];
+          }
+      );
+      $replacer = new \WP_CLI\SearchReplacer( 'old', 'NEW', true, false, '', '/', false, -1, true );
+      $result   = unserialize(
+          $replacer->run(
+              serialize(
+                  new \WpOrg\Requests\Utility\CaseInsensitiveDictionary(
+                      [
+                          'old' => 'v1',
+                          'new' => 'v2',
+                      ]
+                  )
+              )
+          ),
+          [ 'allowed_classes' => [ 'WpOrg\Requests\Utility\CaseInsensitiveDictionary' ] ]
+      );
+      echo json_encode( $result->getAll() );
+      """
+
+    When I try `wp eval-file recurse-keys-case-insensitive.php`
+    Then STDERR should contain:
+      """
+      two property names would map onto the same name
+      """
+    And STDOUT should contain:
+      """
+      "old":"v1"
+      """
+    And STDOUT should contain:
+      """
+      "new":"v2"
+      """
+
+  @require-mysql
+  Scenario: Keep the original key when a regex replacement fails with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-pcre.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_pcre', array( 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!' => 'keep!' ) );
+      """
+    And a check-recurse-keys-pcre.php file:
+      """
+      <?php
+      echo json_encode( get_option( 'recurse_keys_pcre' ) );
+      """
+    And I run `wp eval-file setup-recurse-keys-pcre.php`
+
+    When I try `wp search-replace '^(a+\s?)+$' 'x' wp_options --include-columns=option_value --regex --recurse-keys`
+    Then STDERR should contain:
+      """
+      The provided regular expression threw a PCRE error
+      """
+
+    When I run `wp eval-file check-recurse-keys-pcre.php`
+    Then STDOUT should be:
+      """
+      {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!":"keep!"}
+      """
+
+  @require-mysql
+  Scenario: Do not log rejected key renames with --recurse-keys --log
+    Given a WP install
+    And a setup-recurse-keys-log.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_log_test', array( 'oldtok/key' => 'v1', 'newtok/key' => 'v2', 'other' => 'oldtok/value' ), false );
+      """
+    And I run `wp eval-file setup-recurse-keys-log.php`
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys --log`
+    Then STDERR should contain:
+      """
+      two keys would map onto the same key
+      """
+    And STDOUT should contain:
+      """
+      < oldtok/value
+      """
+    And STDOUT should contain:
+      """
+      > newtok/value
+      """
+    And STDOUT should not contain:
+      """
+      oldtok/key
+      """
+
+  @require-mysql @require-php-8.1
+  Scenario: Keep readonly property names and all values when renaming property names with --recurse-keys
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-readonly.php file:
+      """
+      <?php
+      #[AllowDynamicProperties]
+      class Recurse_Keys_Readonly_Test {
+          public $oldtok_mutable;
+          public readonly string $oldtok_ro;
+          public function __construct( $mutable, $ro ) {
+              $this->oldtok_mutable = $mutable;
+              $this->oldtok_ro      = $ro;
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Readonly_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-readonly.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_readonly_test', array( 'item' => new Recurse_Keys_Readonly_Test( 'keep-mutable', 'keep-ro' ) ), false );
+      """
+    And a check-recurse-keys-readonly.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_readonly_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-readonly.php`
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then the return code should be 0
+
+    When I run `wp eval-file check-recurse-keys-readonly.php`
+    Then STDOUT should contain:
+      """
+      s:9:"oldtok_ro";s:7:"keep-ro";
+      """
+    And STDOUT should contain:
+      """
+      s:14:"newtok_mutable";s:12:"keep-mutable";
+      """
+    And STDOUT should not contain:
+      """
+      "oldtok_mutable"
+      """
+
+  @require-mysql
+  Scenario: Preserve shared object property references when renaming property names with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-object-refs.php file:
+      """
+      <?php
+      $object               = new stdClass();
+      $object->{'oldtok/a'} = 'shared';
+      $object->b            = &$object->{'oldtok/a'};
+      update_option( 'recurse_keys_object_ref_test', array( 'item' => $object ), false );
+      """
+    And a check-recurse-keys-object-refs.php file:
+      """
+      <?php
+      $raw = $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_object_ref_test'" );
+      echo $raw, "\n";
+      echo preg_match( '/[Rr]:\d+;/', $raw ) ? 'HASREF' : 'NOREF', "\n";
+      $value            = get_option( 'recurse_keys_object_ref_test' );
+      $value['item']->b = 'changed';
+      echo $value['item']->{'newtok/a'};
+      """
+    And I run `wp eval-file setup-recurse-keys-object-refs.php`
+
+    When I run `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-object-refs.php`
+    Then STDOUT should contain:
+      """
+      s:8:"newtok/a";
+      """
+    And STDOUT should contain:
+      """
+      "shared"
+      """
+    And STDOUT should contain:
+      """
+      HASREF
+      """
+    And STDOUT should contain:
+      """
+      changed
+      """
+
+  @require-mysql
+  Scenario: Keep the order of numeric object property names that are not renamed with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-numeric-property.php file:
+      """
+      <?php
+      $object        = new stdClass();
+      $object->{'8'} = 'top';
+      $object->label = 'keep';
+      update_option( 'recurse_keys_numeric_property_test', array( 'item' => $object, 'other' => 'oldtok' ), false );
+      """
+    And a check-recurse-keys-numeric-property.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_numeric_property_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-numeric-property.php`
+
+    When I run `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-numeric-property.php`
+    Then STDOUT should be:
+      """
+      a:2:{s:4:"item";O:8:"stdClass":2:{s:1:"8";s:3:"top";s:5:"label";s:4:"keep";}s:5:"other";s:6:"newtok";}
+      """
+
+    When I run `wp search-replace 'stdClass' 'otherClass' wp_options --include-columns=option_value --recurse-keys --dry-run --report-changed-only`
+    Then STDOUT should not contain:
+      """
+      wp_options
+      """
+
+  @require-mysql
+  Scenario: Leave the stored value unchanged when removing a property throws an exception with --recurse-keys
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-throwing-unset.php file:
+      """
+      <?php
+      class Recurse_Keys_Throwing_Unset_Test extends ArrayObject {
+          public static $unset_calls = 0;
+          #[ReturnTypeWillChange]
+          public function offsetUnset( $key ) {
+              if ( 2 === ++self::$unset_calls ) {
+                  throw new Exception( 'second removal failed' );
+              }
+              parent::offsetUnset( $key );
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Throwing_Unset_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-throwing-unset.php file:
+      """
+      <?php
+      $object = new Recurse_Keys_Throwing_Unset_Test( array( 'oldtok_a' => 'value-a', 'keep' => 'value-keep', 'oldtok_b' => 'value-b' ) );
+      update_option( 'recurse_keys_throwing_unset_test', array( 'item' => $object ), false );
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_throwing_unset_test'" );
+      """
+    And a check-recurse-keys-throwing-unset.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_throwing_unset_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-throwing-unset.php`
+    And save STDOUT as {ORIGINAL}
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then the return code should be 0
+
+    When I run `wp eval-file check-recurse-keys-throwing-unset.php`
+    Then STDOUT should be:
+      """
+      {ORIGINAL}
+      """
+    And STDOUT should contain:
+      """
+      s:8:"oldtok_a";s:7:"value-a";s:4:"keep";s:10:"value-keep";s:8:"oldtok_b";s:7:"value-b";
+      """
+
+  @require-mysql
+  Scenario: Leave the stored value unchanged when an immutable offset sits between renamed offsets with --recurse-keys
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-immutable-offset.php file:
+      """
+      <?php
+      class Recurse_Keys_Immutable_Offset_Test extends ArrayObject {
+          #[ReturnTypeWillChange]
+          public function offsetSet( $key, $value ) {
+              if ( 'keep' === $key ) {
+                  throw new Exception( 'keep is immutable' );
+              }
+              parent::offsetSet( $key, $value );
+          }
+          #[ReturnTypeWillChange]
+          public function offsetUnset( $key ) {
+              if ( 'keep' === $key ) {
+                  throw new Exception( 'keep is immutable' );
+              }
+              parent::offsetUnset( $key );
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Immutable_Offset_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-immutable-offset.php file:
+      """
+      <?php
+      $object = new Recurse_Keys_Immutable_Offset_Test( array( 'oldtok_a' => 'value-a', 'keep' => 'value-keep', 'oldtok_b' => 'value-b' ) );
+      update_option( 'recurse_keys_immutable_offset_test', array( 'item' => $object, 'other' => 'oldtok-other' ), false );
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_immutable_offset_test'" );
+      """
+    And a check-recurse-keys-immutable-offset.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_immutable_offset_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-immutable-offset.php`
+    And save STDOUT as {ORIGINAL}
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then the return code should be 0
+    And STDERR should contain:
+      """
+      the whole value was left unchanged
+      """
+
+    When I run `wp eval-file check-recurse-keys-immutable-offset.php`
+    Then STDOUT should be:
+      """
+      {ORIGINAL}
+      """
+    And STDOUT should contain:
+      """
+      s:8:"oldtok_b";s:7:"value-b";
+      """
+
+  @require-mysql
+  Scenario: Leave the stored value unchanged when removing an offset throws after removing it with --recurse-keys
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-unset-then-throw.php file:
+      """
+      <?php
+      class Recurse_Keys_Unset_Then_Throw_Test extends ArrayObject {
+          #[ReturnTypeWillChange]
+          public function offsetUnset( $key ) {
+              parent::offsetUnset( $key );
+              if ( 'oldtok_b' === $key ) {
+                  throw new Exception( 'removed oldtok_b, then failed' );
+              }
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Unset_Then_Throw_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-unset-then-throw.php file:
+      """
+      <?php
+      $object = new Recurse_Keys_Unset_Then_Throw_Test( array( 'oldtok_a' => 'value-a', 'keep' => 'value-keep', 'oldtok_b' => 'value-b' ) );
+      update_option( 'recurse_keys_unset_then_throw_test', array( 'item' => $object, 'other' => 'oldtok-other' ), false );
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_unset_then_throw_test'" );
+      """
+    And a check-recurse-keys-unset-then-throw.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_unset_then_throw_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-unset-then-throw.php`
+    And save STDOUT as {ORIGINAL}
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then the return code should be 0
+    And STDERR should contain:
+      """
+      the whole value was left unchanged
+      """
+
+    When I run `wp eval-file check-recurse-keys-unset-then-throw.php`
+    Then STDOUT should be:
+      """
+      {ORIGINAL}
+      """
+    And STDOUT should contain:
+      """
+      s:8:"oldtok_b";s:7:"value-b";
+      """
+
+  @require-mysql @require-php-8.1
+  Scenario: Leave nested objects unchanged when a readonly property of their parent cannot be updated with --recurse-keys
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-readonly-parent.php file:
+      """
+      <?php
+      class Recurse_Keys_Readonly_Parent_Test {
+          public readonly string $label;
+          public $child;
+          public function __construct( $label, $child ) {
+              $this->label = $label;
+              $this->child = $child;
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Readonly_Parent_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-readonly-parent.php file:
+      """
+      <?php
+      $child               = new stdClass();
+      $child->oldtok_child = 'value-child';
+      update_option( 'recurse_keys_readonly_parent_test', array( 'item' => new Recurse_Keys_Readonly_Parent_Test( 'oldtok-label', $child ) ), false );
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_readonly_parent_test'" );
+      """
+    And a check-recurse-keys-readonly-parent.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_readonly_parent_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-readonly-parent.php`
+    And save STDOUT as {ORIGINAL}
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then the return code should be 0
+    And STDERR should contain:
+      """
+      Cannot modify readonly property
+      """
+
+    When I run `wp eval-file check-recurse-keys-readonly-parent.php`
+    Then STDOUT should be:
+      """
+      {ORIGINAL}
+      """
+    And STDOUT should contain:
+      """
+      s:12:"oldtok_child";s:11:"value-child";
+      """
+
+  @require-mysql
+  Scenario: Do not log a value that is left unchanged after a failed key replacement with --recurse-keys --log
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-failing-log.php file:
+      """
+      <?php
+      class Recurse_Keys_Failing_Log_Test extends ArrayObject {
+          #[ReturnTypeWillChange]
+          public function offsetUnset( $key ) {
+              throw new Exception( 'removal failed' );
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Failing_Log_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-failing-log.php file:
+      """
+      <?php
+      $object = new Recurse_Keys_Failing_Log_Test( array( 'oldtok_a' => 'oldtok-discarded-value' ) );
+      update_option( 'recurse_keys_failing_log_a', array( 'item' => $object, 'other' => 'oldtok-discarded-sibling' ), false );
+      update_option( 'recurse_keys_failing_log_b', array( 'other' => 'oldtok/next-row' ), false );
+      """
+    And I run `wp eval-file setup-recurse-keys-failing-log.php`
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys --log`
+    Then the return code should be 0
+    And STDOUT should contain:
+      """
+      < oldtok/next-row
+      """
+    And STDOUT should not contain:
+      """
+      oldtok-discarded
+      """
+    And STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
