@@ -979,7 +979,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 				}
 
 				if ( $this->log_handle ) {
-					$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data() );
+					$this->log_php_diff( $col, $keys, $table, $old, $new, $replacer->get_log_data(), $replacer->get_log_new_data() );
 					$replacer->clear_log_data();
 				}
 
@@ -1418,8 +1418,25 @@ class Search_Replace_Command extends WP_CLI_Command {
 	 * @param string        $old      Old value to match.
 	 * @param string        $new      New value to replace the old value with.
 	 * @param string[]      $log_data Array of data strings before replacements.
+	 * @param string[]      $log_new_data Array of the same data strings after replacements.
 	 */
-	private function log_php_diff( $col, $keys, $table, $old, $new, $log_data ) {
+	private function log_php_diff( $col, $keys, $table, $old, $new, $log_data, $log_new_data = array() ) {
+		if ( $this->callback ) {
+			// The callback may return anything, so log what it actually returned
+			// instead of simulating an ordinary replacement (and never call it again).
+			$old_bits = array();
+			$new_bits = array();
+			foreach ( $log_data as $i => $data ) {
+				if ( isset( $log_new_data[ $i ] ) ) {
+					list( $old_bits[], $new_bits[] ) = $this->log_changed_bits( $data, $log_new_data[ $i ] );
+				}
+			}
+			if ( $old_bits ) {
+				$this->log_write( $col, $keys, $table, $old_bits, $new_bits );
+			}
+			return;
+		}
+
 		if ( $this->regex ) {
 			$search_regex = $this->regex_delimiter . $old . $this->regex_delimiter . $this->regex_flags;
 		} else {
@@ -1541,6 +1558,60 @@ class Search_Replace_Command extends WP_CLI_Command {
 		}
 
 		return array( $old_bits, $new_bits );
+	}
+
+	/**
+	 * Returns the log strings of the part that differs between two data strings, with context.
+	 *
+	 * Used for callback replacements, whose result cannot be derived from the matches.
+	 *
+	 * @param string $old_data Data before the replacement.
+	 * @param string $new_data Data after the replacement.
+	 * @return string[] Two element array containing the old and the new log string.
+	 */
+	private function log_changed_bits( $old_data, $new_data ) {
+		$encoding = $this->log_encoding;
+		if ( ! $encoding && ( $this->log_before_context || $this->log_after_context ) && function_exists( 'mb_detect_encoding' ) ) {
+			$encoding = mb_detect_encoding( $old_data, null, true /*strict*/ );
+		}
+
+		$old_len = strlen( $old_data );
+		$new_len = strlen( $new_data );
+		$max     = min( $old_len, $new_len );
+
+		$prefix = 0;
+		while ( $prefix < $max && $old_data[ $prefix ] === $new_data[ $prefix ] ) {
+			++$prefix;
+		}
+		$suffix = 0;
+		while ( $suffix < $max - $prefix && $old_data[ $old_len - 1 - $suffix ] === $new_data[ $new_len - 1 - $suffix ] ) {
+			++$suffix;
+		}
+
+		// Do not cut a UTF-8 multibyte character in two.
+		$is_continuation = static function ( $str, $pos ) {
+			return $pos < strlen( $str ) && 0x80 === ( ord( $str[ $pos ] ) & 0xC0 );
+		};
+		while ( $prefix > 0 && ( $is_continuation( $old_data, $prefix ) || $is_continuation( $new_data, $prefix ) ) ) {
+			--$prefix;
+		}
+		while ( $suffix > 0 && ( $is_continuation( $old_data, $old_len - $suffix ) || $is_continuation( $new_data, $new_len - $suffix ) ) ) {
+			--$suffix;
+		}
+
+		$before = '';
+		$after  = '';
+		if ( $this->log_before_context && $prefix ) {
+			$before = safe_substr( substr( $old_data, 0, $prefix ), -$this->log_before_context, null /*length*/, false /*is_width*/, $encoding );
+		}
+		if ( $this->log_after_context && $suffix ) {
+			$after = safe_substr( substr( $old_data, $old_len - $suffix ), 0, $this->log_after_context, false /*is_width*/, $encoding );
+		}
+
+		$old_log = $this->log_colors['log_old'][0] . substr( $old_data, $prefix, $old_len - $prefix - $suffix ) . $this->log_colors['log_old'][1];
+		$new_log = $this->log_colors['log_new'][0] . substr( $new_data, $prefix, $new_len - $prefix - $suffix ) . $this->log_colors['log_new'][1];
+
+		return array( $before . $old_log . $after, $before . $new_log . $after );
 	}
 
 	/**

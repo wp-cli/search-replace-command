@@ -268,3 +268,40 @@ Feature: Test search-replace --callback option
       """
       foo bar
       """
+
+  @require-mysql
+  Scenario: Log shows the value the callback returned
+    Given a WP install
+    And a callback-function.php file:
+      """
+      <?php
+      function test_callback( $data, $replacement ) {
+        return str_replace( 'foo', strtoupper( $replacement ), $data );
+      }
+      """
+    And I run `wp post create --post_title='foo bar' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I run `wp search-replace 'foo' 'baz' wp_posts --include-columns=post_title --callback='test_callback' --require=callback-function.php --dry-run --log`
+    Then STDOUT should contain:
+      """
+      Success: 1 replacement to be made.
+      """
+    And STDOUT should contain:
+      """
+      wp_posts.post_title:{POST_ID}
+      < foo bar
+      > BAZ bar
+      """
+
+    When I run `wp search-replace 'foo' 'baz' wp_posts --include-columns=post_title --callback='test_callback' --require=callback-function.php --log=- --before_context=2 --after_context=2`
+    Then STDOUT should contain:
+      """
+      Success: Made 1 replacement.
+      """
+    And STDOUT should contain:
+      """
+      wp_posts.post_title:{POST_ID}
+      < foo b
+      > BAZ b
+      """
