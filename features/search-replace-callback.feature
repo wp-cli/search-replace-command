@@ -270,6 +270,30 @@ Feature: Test search-replace --callback option
       """
 
   @require-mysql
+  Scenario: Callback is applied to a value of 0 in an export
+    Given a WP install
+    And a callback-zero.php file:
+      """
+      <?php
+      function zero_callback( $data, $replacement ) {
+        return '0' === $data ? 'ZERO' : $data;
+      }
+      """
+    And I run `wp option add zero_test_option 0`
+
+    When I run `wp search-replace '0' 'ignored' wp_options --include-columns=option_value --callback='zero_callback' --require=callback-zero.php --export`
+    Then STDOUT should contain:
+      """
+      'zero_test_option', 'ZERO'
+      """
+
+    When I run `wp option get zero_test_option`
+    Then STDOUT should be:
+      """
+      0
+      """
+
+  @require-mysql
   Scenario: Log shows the value the callback returned
     Given a WP install
     And a callback-function.php file:

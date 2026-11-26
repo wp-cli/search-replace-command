@@ -781,7 +781,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 			$row_fields = array();
 			foreach ( $all_columns as $col ) {
 				$value = $row->$col;
-				if ( $value
+				if ( null !== $value && '' !== $value
 					&& ! in_array( $col, $primary_keys, true )
 					&& ! in_array( $col, $this->skip_columns, true )
 					&& ! in_array( $table . '.' . $col, $this->skip_columns, true )
