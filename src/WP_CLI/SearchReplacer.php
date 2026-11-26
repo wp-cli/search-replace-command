@@ -309,6 +309,48 @@ class SearchReplacer {
 	}
 
 	/**
+	 * Work out the replacement for each key of a container.
+	 *
+	 * Log entries produced while replacing the keys are kept apart from the
+	 * value log, so that they can be committed only once the container
+	 * accepts the renames (see commit_key_logs()).
+	 *
+	 * @param array<int|string> $keys The keys or property names.
+	 * @return array{0: array<int|string, int|string>, 1: array<int|string, string[]>} Map of original key to
+	 *                                destination key, and the pending log entries for each key.
+	 */
+	private function plan_key_renames( $keys ) {
+		$renames  = array();
+		$key_logs = array();
+		foreach ( $keys as $key ) {
+			$mark             = count( $this->log_data );
+			$renames[ $key ]  = $this->replace_key( $key );
+			$key_logs[ $key ] = array_splice( $this->log_data, $mark );
+		}
+		return array( $renames, $key_logs );
+	}
+
+	/**
+	 * Add the log entries of the keys that were actually renamed.
+	 *
+	 * @param array<int|string, int|string> $renames  Map of original key to destination key.
+	 * @param array<int|string, string[]>   $key_logs Pending log entries for each key.
+	 * @param int                           $position Position in the log at which to insert the entries.
+	 * @return void
+	 */
+	private function commit_key_logs( $renames, $key_logs, $position ) {
+		$accepted = array();
+		foreach ( $renames as $key => $new_key ) {
+			if ( $new_key !== $key ) {
+				$accepted = array_merge( $accepted, $key_logs[ $key ] );
+			}
+		}
+		if ( $accepted ) {
+			array_splice( $this->log_data, $position, 0, $accepted );
+		}
+	}
+
+	/**
 	 * Recurse into an array, replacing string keys as well as values.
 	 *
 	 * Renamed keys keep their original position. Shared references between
@@ -322,20 +364,19 @@ class SearchReplacer {
 	 * @return array The processed array.
 	 */
 	private function replace_array_keys( $data, $recursion_level, $visited_data ) {
-		$renames = array();
-		foreach ( array_keys( $data ) as $key ) {
-			$renames[ $key ] = $this->replace_key( $key );
-		}
+		list( $renames, $key_logs ) = $this->plan_key_renames( array_keys( $data ) );
 		if ( $this->has_destination_collision( $renames, false ) ) {
 			\WP_CLI::warning( 'Skipping key replacement for an array: two keys would map onto the same key and a value would be lost.' );
 			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
-		$replaced = array();
+		$log_position = count( $this->log_data );
+		$replaced     = array();
 		foreach ( $data as $key => &$value ) {
 			$value                        = $this->run_recursively( $value, false, $recursion_level + 1, $visited_data );
 			$replaced[ $renames[ $key ] ] =& $value;
 		}
 		unset( $value );
+		$this->commit_key_logs( $renames, $key_logs, $log_position );
 		return $replaced;
 	}
 
@@ -347,6 +388,12 @@ class SearchReplacer {
 	 * been read yet. When two property names would map onto the same name,
 	 * the property names are left unchanged (values are still replaced) and a
 	 * warning is emitted instead of silently discarding a value.
+	 *
+	 * Readonly properties (PHP 8.1+) are never renamed, and no property is
+	 * renamed onto a readonly property. Properties that share a PHP reference
+	 * keep sharing it after a rename. If modifying the object fails part way,
+	 * it is restored to its original property names and values before the
+	 * error is passed on.
 	 *
 	 * ArrayAccess implementations may normalize offsets on write. Offsets are
 	 * only renamed for implementations whose offset semantics are known
@@ -361,10 +408,11 @@ class SearchReplacer {
 	 * @return object The processed object.
 	 */
 	private function replace_object_property_names( $data, $is_array_access, $recursion_level, $visited_data ) {
-		$renames = array();
+		$keys = array();
 		foreach ( $data as $key => $value ) {
-			$renames[ $key ] = $this->replace_key( $key );
+			$keys[] = $key;
 		}
+		list( $renames, $key_logs ) = $this->plan_key_renames( $keys );
 
 		$case_insensitive = false;
 		$keep_offsets     = false;
@@ -373,6 +421,20 @@ class SearchReplacer {
 				$case_insensitive = true;
 			} elseif ( ! $data instanceof \ArrayObject && ! $data instanceof \ArrayIterator ) {
 				$keep_offsets = true;
+			}
+		}
+
+		$readonly = $is_array_access ? array() : $this->get_readonly_property_names( $data );
+		foreach ( $renames as $key => $new_key ) {
+			if ( $new_key !== $key && ( isset( $readonly[ $key ] ) || isset( $readonly[ $new_key ] ) ) ) {
+				\WP_CLI::warning(
+					sprintf(
+						'Skipping key replacement for property "%s" of an object of class "%s": a readonly property cannot be renamed or overwritten.',
+						$key,
+						get_class( $data )
+					)
+				);
+				$renames[ $key ] = $key;
 			}
 		}
 
@@ -397,20 +459,108 @@ class SearchReplacer {
 			$renames = array_combine( array_keys( $renames ), array_keys( $renames ) );
 		}
 
-		// Stage all processed values before touching the object.
-		$values = array();
+		// Take a reference to each writable property, so that renaming a
+		// property keeps any reference it shares with other properties.
+		$refs      = array();
+		$originals = array();
 		foreach ( $renames as $key => $new_key ) {
-			$values[ $key ] = $this->run_recursively( $this->read_property( $data, $is_array_access, $key ), false, $recursion_level + 1, $visited_data );
-		}
-		foreach ( $renames as $key => $new_key ) {
-			if ( $new_key !== $key ) {
-				$this->remove_property( $data, $is_array_access, $key );
+			if ( $is_array_access || isset( $readonly[ $key ] ) ) {
+				$originals[ $key ] = $this->read_property( $data, $is_array_access, $key );
+			} else {
+				$refs[ $key ]      = &$data->$key;
+				$originals[ $key ] = $refs[ $key ];
 			}
 		}
+
+		// Stage all processed values before touching the object.
+		$log_position = count( $this->log_data );
+		$values       = array();
 		foreach ( $renames as $key => $new_key ) {
-			$this->write_property( $data, $is_array_access, $new_key, $values[ $key ] );
+			$values[ $key ] = $this->run_recursively( $originals[ $key ], false, $recursion_level + 1, $visited_data );
 		}
+
+		$removed = array();
+		$written = array();
+		try {
+			foreach ( $renames as $key => $new_key ) {
+				if ( $new_key !== $key ) {
+					$this->remove_property( $data, $is_array_access, $key );
+					$removed[ $key ] = true;
+				}
+			}
+			foreach ( $renames as $key => $new_key ) {
+				if ( isset( $readonly[ $key ] ) ) {
+					if ( $values[ $key ] !== $originals[ $key ] ) {
+						throw new \Error( sprintf( 'Cannot modify readonly property %s::$%s', get_class( $data ), $key ) ); // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
+					}
+					continue;
+				}
+				if ( $is_array_access ) {
+					$this->write_property( $data, true, $new_key, $values[ $key ] );
+					if ( $new_key !== $key ) {
+						$written[] = $new_key;
+					}
+					continue;
+				}
+				if ( $new_key !== $key ) {
+					$data->$new_key = &$refs[ $key ];
+					$written[]      = $new_key;
+				}
+				$refs[ $key ] = $values[ $key ];
+			}
+		} catch ( \Error $exception ) { // phpcs:ignore PHPCompatibility.Classes.NewClasses.errorFound
+			$this->restore_object( $data, $is_array_access, $renames, $originals, $refs, $removed, $written );
+			throw $exception;
+		}
+
+		$this->commit_key_logs( $renames, $key_logs, $log_position );
 		return $data;
+	}
+
+	/**
+	 * Restore an object to its original property names and values after a failed modification.
+	 *
+	 * @param object                        $data            The object to restore.
+	 * @param bool                          $is_array_access Whether the object implements ArrayAccess.
+	 * @param array<int|string, int|string> $renames         Map of original key to destination key.
+	 * @param array<int|string, mixed>      $originals       Original values, by original key.
+	 * @param array<int|string, mixed>      $refs            References to the original properties, by original key.
+	 * @param array<int|string, bool>       $removed         Original keys that were removed.
+	 * @param array<int|string>             $written         Destination keys that were written.
+	 * @return void
+	 */
+	private function restore_object( $data, $is_array_access, $renames, $originals, &$refs, $removed, $written ) {
+		foreach ( $written as $name ) {
+			$this->remove_property( $data, $is_array_access, $name );
+		}
+		foreach ( $renames as $key => $new_key ) {
+			if ( $is_array_access ) {
+				$this->write_property( $data, true, $key, $originals[ $key ] );
+			} elseif ( array_key_exists( $key, $refs ) ) {
+				if ( isset( $removed[ $key ] ) ) {
+					$data->$key = &$refs[ $key ];
+				}
+				$refs[ $key ] = $originals[ $key ];
+			}
+		}
+	}
+
+	/**
+	 * Get the names of the readonly properties of an object.
+	 *
+	 * Readonly properties exist as of PHP 8.1; on older versions there are none.
+	 *
+	 * @param object $data The object to inspect.
+	 * @return array<string, bool> Readonly property names as keys.
+	 */
+	private function get_readonly_property_names( $data ) {
+		$names = array();
+		foreach ( ( new \ReflectionObject( $data ) )->getProperties() as $property ) {
+			if ( method_exists( $property, 'isReadOnly' ) && $property->isReadOnly() ) {
+				$names[ $property->getName() ] = true;
+			}
+		}
+		return $names;
 	}
 
 	/**

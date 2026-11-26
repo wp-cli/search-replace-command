@@ -2003,3 +2003,127 @@ Feature: Do global search/replace
       """
       {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!":"keep!"}
       """
+
+  @require-mysql
+  Scenario: Do not log rejected key renames with --recurse-keys --log
+    Given a WP install
+    And a setup-recurse-keys-log.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_log_test', array( 'oldtok/key' => 'v1', 'newtok/key' => 'v2', 'other' => 'oldtok/value' ), false );
+      """
+    And I run `wp eval-file setup-recurse-keys-log.php`
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys --log`
+    Then STDERR should contain:
+      """
+      two keys would map onto the same key
+      """
+    And STDOUT should contain:
+      """
+      < oldtok/value
+      """
+    And STDOUT should contain:
+      """
+      > newtok/value
+      """
+    And STDOUT should not contain:
+      """
+      oldtok/key
+      """
+
+  @require-mysql @require-php-8.1
+  Scenario: Keep readonly property names and all values when renaming property names with --recurse-keys
+    Given a WP install
+    And a wp-content/mu-plugins/recurse-keys-readonly.php file:
+      """
+      <?php
+      #[AllowDynamicProperties]
+      class Recurse_Keys_Readonly_Test {
+          public $oldtok_mutable;
+          public readonly string $oldtok_ro;
+          public function __construct( $mutable, $ro ) {
+              $this->oldtok_mutable = $mutable;
+              $this->oldtok_ro      = $ro;
+          }
+      }
+      if ( class_exists( 'WP_CLI' ) ) {
+          WP_CLI::add_hook(
+              'search_replace_unserialize_options',
+              function () {
+                  return [ 'allowed_classes' => [ 'stdClass', 'Recurse_Keys_Readonly_Test' ] ];
+              }
+          );
+      }
+      """
+    And a setup-recurse-keys-readonly.php file:
+      """
+      <?php
+      update_option( 'recurse_keys_readonly_test', array( 'item' => new Recurse_Keys_Readonly_Test( 'keep-mutable', 'keep-ro' ) ), false );
+      """
+    And a check-recurse-keys-readonly.php file:
+      """
+      <?php
+      echo $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_readonly_test'" );
+      """
+    And I run `wp eval-file setup-recurse-keys-readonly.php`
+
+    When I try `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then the return code should be 0
+
+    When I run `wp eval-file check-recurse-keys-readonly.php`
+    Then STDOUT should contain:
+      """
+      s:9:"oldtok_ro";s:7:"keep-ro";
+      """
+    And STDOUT should contain:
+      """
+      s:12:"keep-mutable";
+      """
+
+  @require-mysql
+  Scenario: Preserve shared object property references when renaming property names with --recurse-keys
+    Given a WP install
+    And a setup-recurse-keys-object-refs.php file:
+      """
+      <?php
+      $object               = new stdClass();
+      $object->{'oldtok/a'} = 'shared';
+      $object->b            = &$object->{'oldtok/a'};
+      update_option( 'recurse_keys_object_ref_test', array( 'item' => $object ), false );
+      """
+    And a check-recurse-keys-object-refs.php file:
+      """
+      <?php
+      $raw = $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'recurse_keys_object_ref_test'" );
+      echo $raw, "\n";
+      echo preg_match( '/[Rr]:\d+;/', $raw ) ? 'HASREF' : 'NOREF', "\n";
+      $value            = get_option( 'recurse_keys_object_ref_test' );
+      $value['item']->b = 'changed';
+      echo $value['item']->{'newtok/a'};
+      """
+    And I run `wp eval-file setup-recurse-keys-object-refs.php`
+
+    When I run `wp search-replace 'oldtok' 'newtok' wp_options --include-columns=option_value --recurse-keys`
+    Then STDOUT should contain:
+      """
+      Success:
+      """
+
+    When I run `wp eval-file check-recurse-keys-object-refs.php`
+    Then STDOUT should contain:
+      """
+      s:8:"newtok/a";
+      """
+    And STDOUT should contain:
+      """
+      "shared"
+      """
+    And STDOUT should contain:
+      """
+      HASREF
+      """
+    And STDOUT should contain:
+      """
+      changed
+      """
