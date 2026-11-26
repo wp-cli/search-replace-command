@@ -598,6 +598,36 @@ Feature: Test search-replace --where option
       | wp_idkeyed::ID = '1'     | 2     | one bar |
 
   @require-mysql
+  Scenario Outline: Where on a table whose primary key is a prefix of a text column
+    Given a WP install
+    And I run `wp db query "CREATE TABLE wp_prefixed ( slug TEXT NOT NULL, title TEXT, body TEXT, PRIMARY KEY (slug(32)) )"`
+    And I run `wp db query "INSERT INTO wp_prefixed VALUES ('one-slug-that-is-longer-than-its-32-character-key', 'foo', 'foo'), ('two-slug-that-is-longer-than-its-32-character-key', 'foo', 'foo')"`
+
+    When I run `wp search-replace foo bar --all-tables --where="wp_prefixed::slug = 'one-slug-that-is-longer-than-its-32-character-key'" --dry-run --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp search-replace foo bar --all-tables --where="wp_prefixed::slug = 'one-slug-that-is-longer-than-its-32-character-key'" --format=count <flags>`
+    Then STDOUT should be:
+      """
+      2
+      """
+
+    When I run `wp db query "SELECT CONCAT_WS('|', slug, title, body) FROM wp_prefixed ORDER BY slug" --skip-column-names`
+    Then STDOUT should be:
+      """
+      one-slug-that-is-longer-than-its-32-character-key|bar|bar
+      two-slug-that-is-longer-than-its-32-character-key|foo|foo
+      """
+
+    Examples:
+      | flags     |
+      |           |
+      | --precise |
+
+  @require-mysql
   Scenario Outline: A failed row selection stops before any column is replaced
     Given a WP install
     And I run `wp post create --post_title='Title foo' --post_content='Content foo' --porcelain`

@@ -1871,6 +1871,25 @@ class Search_Replace_Command extends WP_CLI_Command {
 		$table_sql   = self::esc_sql_ident( $table );
 		$suffix      = substr( md5( uniqid( '', true ) ), 0, 8 );
 
+		// The temporary table holds the full key values, but its primary key must index the same
+		// prefixes as the table's own, as a TEXT or BLOB column can only be indexed by a prefix.
+		$key_prefixes = array();
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident
+		foreach ( (array) $wpdb->get_results( "SHOW INDEX FROM $table_sql WHERE Key_name = 'PRIMARY'" ) as $index_col ) {
+			if ( isset( $index_col->Column_name, $index_col->Sub_part ) && (int) $index_col->Sub_part > 0 ) {
+				$key_prefixes[ $index_col->Column_name ] = (int) $index_col->Sub_part;
+			}
+		}
+		$key_index_sql = implode(
+			', ',
+			array_map(
+				static function ( $key ) use ( $key_prefixes ) {
+					return self::esc_sql_ident( $key ) . ( isset( $key_prefixes[ $key ] ) ? "({$key_prefixes[ $key ]})" : '' );
+				},
+				$primary_keys
+			)
+		);
+
 		$key_clauses = array();
 		$key_tables  = array();
 		foreach ( array_keys( $groups ) as $index => $condition ) {
@@ -1879,7 +1898,7 @@ class Search_Replace_Command extends WP_CLI_Command {
 
 			$suppress_errors = $wpdb->suppress_errors();
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- escaped through self::esc_sql_ident, the --where clauses are raw SQL by design
-			$wpdb->query( "CREATE TEMPORARY TABLE $key_table_sql ( PRIMARY KEY ( $keys_sql ) ) SELECT $keys_sql FROM $table_sql WHERE $condition" );
+			$wpdb->query( "CREATE TEMPORARY TABLE $key_table_sql ( PRIMARY KEY ( $key_index_sql ) ) SELECT $keys_sql FROM $table_sql WHERE $condition" );
 			$error = $wpdb->last_error;
 			$wpdb->suppress_errors( $suppress_errors );
 			if ( $error ) {
