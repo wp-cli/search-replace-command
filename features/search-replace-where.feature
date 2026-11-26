@@ -355,6 +355,39 @@ Feature: Test search-replace --where option
       Success: 1 replacement to be made.
       """
 
+  @require-mysql
+  Scenario: Malformed where specifications are rejected before any table is processed
+    Given a WP install
+    And I run `wp post create --post_title='Post foo' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I try `wp search-replace foo bar --where='wp_posts:post_title'`
+    Then STDERR should be:
+      """
+      Error: Invalid --where specification 'wp_posts:post_title'. Expected format: <table>[,table]:[column,...]:<SQL-condition>.
+      """
+    And the return code should be 1
+
+    When I try `wp search-replace foo bar --where='posts::1=1;wp_postmeta:meta_value'`
+    Then STDERR should be:
+      """
+      Error: Invalid --where specification 'wp_postmeta:meta_value'. Expected format: <table>[,table]:[column,...]:<SQL-condition>.
+      """
+    And the return code should be 1
+
+    When I try `wp search-replace foo bar --where=":post_title:1=1"`
+    Then STDERR should be:
+      """
+      Error: Invalid --where specification ':post_title:1=1': no table given.
+      """
+    And the return code should be 1
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Post foo
+      """
+
   Scenario: Where clause cannot be combined with an export
     Given a WP install
 
