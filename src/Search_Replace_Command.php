@@ -1699,7 +1699,11 @@ class Search_Replace_Command extends WP_CLI_Command {
 				$this->where[ $table ][ $column ] ?? [],
 				$this->where[ $table ]['*'] ?? [],
 				[ (string) $this->get_revision_clause( $table ) ]
-			)
+			),
+			static function ( $clause ) {
+				// Keep a condition like '0': only drop the absent or empty ones.
+				return '' !== trim( $clause );
+			}
 		);
 
 		// Parenthesize each clause, so that an OR in one cannot escape the AND with the others.

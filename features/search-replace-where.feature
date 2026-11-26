@@ -444,6 +444,30 @@ Feature: Test search-replace --where option
       Post foo
       """
 
+  @require-mysql
+  Scenario: Where condition of 0 matches no rows
+    Given a WP install
+    And I run `wp post create --post_title='Post foo' --porcelain`
+    And save STDOUT as {POST_ID}
+
+    When I run `wp search-replace foo bar --where='wp_posts:post_title:0'`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+
+    When I run `wp search-replace foo bar --where='wp_posts:post_title:0' --precise`
+    Then STDOUT should contain:
+      """
+      Success: Made 0 replacements.
+      """
+
+    When I run `wp post get {POST_ID} --field=title`
+    Then STDOUT should be:
+      """
+      Post foo
+      """
+
   Scenario: Where clause cannot be combined with an export
     Given a WP install
 
